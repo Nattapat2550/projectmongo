@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings - ProjectMongo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <main class="container settings-container">
+    <h1>Settings</h1>
+
+    <section>
+      <h2>Edit Username</h2>
+      <form id="edit-name-form">
+        <input type="text" id="new-username" placeholder="New username" required />
+        <button type="submit">Change Name</button>
+      </form>
+      <p id="name-msg" class="info-msg"></p>
+    </section>
+
+    <section>
+      <h2>Change Profile Picture</h2>
+      <form id="upload-picture-form" enctype="multipart/form-data">
+        <input type="file" id="profile-picture" accept="image/png, image/jpeg" required />
+        <button type="submit">Upload Picture</button>
+      </form>
+      <p id="picture-msg" class="info-msg"></p>
+    </section>
+
+    <section>
+      <h2>Theme</h2>
+      <button id="toggle-theme-btn">Toggle Light/Dark Mode</button>
+    </section>
+
+    <section>
+      <h2>Danger Zone</h2>
+      <button id="delete-account-btn" class="danger-btn">Delete Account</button>
+      <p id="delete-msg" class="info-msg"></p>
+    </section>
+  </main>
+
+  <script src="js/navbar.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

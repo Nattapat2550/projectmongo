@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login Success - ProjectMongo</title>
+</head>
+<body>
+  <p>Logging you in...</p>
+  <script>
+    // Parse token from URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem('token', token);
+      // Clean URL and redirect to home
+      window.history.replaceState({}, document.title, '/');
+      window.location.href = 'index.html';
+    } else {
+      // No token found, redirect to login
+      window.location.href = 'login.html';
+    }
+  </script>
+</body>
+</html>

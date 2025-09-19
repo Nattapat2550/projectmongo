@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>หน้าหลัก - My Web App</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="images/user.png">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">My Web App</div>
+            <div class="nav-menu">
+                <a href="home.html" class="nav-link active">หน้าหลัก</a>
+                <a href="about.html" class="nav-link">เกี่ยวกับ</a>
+                <a href="contact.html" class="nav-link">ติดต่อ</a>
+            </div>
+            <div class="nav-user">
+                <div class="user-info" onclick="toggleDropdown()">
+                    <img id="userAvatar" src="images/user.png" alt="Avatar" class="avatar">
+                    <span id="userName">กำลังโหลด...</span>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+                <div id="userDropdown" class="dropdown-menu">
+                    <a href="settings.html" class="dropdown-item">⚙️ ตั้งค่า</a>
+                    <button onclick="logout()" class="dropdown-item logout-btn">🚪 ออกจากระบบ</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <main class="main-content">
+        <div class="container">
+            <h1>เกี่ยวกับเรา</h1>
+            <div class="content-card">
+                <h2>🌟 My Web App</h2>
+                <p>เว็บแอปพลิเคชันที่สร้างขึ้นด้วยเทคโนโลยีสมัยใหม่ เพื่อให้ประสบการณ์การใช้งานที่ดีที่สุด</p>
+                
+                <h3>✨ คุณสมบัติเด่น</h3>
+                <ul>
+                    <li>🔐 ระบบสมาชิกที่ปลอดภัยด้วย JWT Authentication</li>
+                    <li>🔗 เข้าสู่ระบบด้วย Google OAuth</li>
+                    <li>👤 จัดการข้อมูลส่วนตัวได้อย่างง่ายดาย</li>
+                    <li>🎨 เปลี่ยนธีมระหว่างโหมดสว่างและมืดได้</li>
+                    <li>📷 อัปโหลดและเปลี่ยนรูปโปรไฟล์ได้</li>
+                    <li>📱 Responsive Design รองรับทุกอุปกรณ์</li>
+                    <li>🚀 Performance ที่เร็วและเสถียร</li>
+                </ul>
+
+                <h3>🛠️ เทคโนโลยีที่ใช้</h3>
+                <div class="tech-grid">
+                    <div class="tech-card">
+                        <h4>Frontend</h4>
+                        <p>HTML5, CSS3, JavaScript (ES6+)</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Backend</h4>
+                        <p>Node.js, Express.js</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Database</h4>
+                        <p>MongoDB with Mongoose ODM</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Authentication</h4>
+                        <p>JWT, Passport.js, Google OAuth</p>
+                    </div>
+                </div>
+
+                <h3>🔒 ความปลอดภัย</h3>
+                <p>เรามุ่งมั่นในการปกป้องข้อมูลของคุณด้วย:</p>
+                <ul>
+                    <li>การเข้ารหัสรหัสผ่านด้วย bcrypt</li>
+                    <li>JWT Token สำหรับการตรวจสอบสิทธิ์</li>
+                    <li>CORS Policy ที่เข้มงวด</li>
+                    <li>Input validation และ sanitization</li>
+                    <li>Secure file upload</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+    
+    <script src="js/theme.js"></script>
+    <script src="js/home.js"></script>
+</body>
+</html>

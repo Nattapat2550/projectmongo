@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - ProjectMongo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="container auth-container">
+    <h1>Login</h1>
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" required />
+      <label for="password">Password</label>
+      <input type="password" id="password" required />
+      <button type="submit">Login</button>
+    </form>
+
+    <button id="google-login-btn" class="google-btn">Login with Google</button>
+
+    <p>Don't have an account? <a href="register.html">Register here</a></p>
+    <p id="error-msg" class="error-msg"></p>
+  </main>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>
