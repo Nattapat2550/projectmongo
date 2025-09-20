@@ -54,7 +54,7 @@ exports.googleAuthCallback = (req, res, next) => {
     const token = generateToken(user);
 
     // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/login/success?token=${token}`);
+    res.redirect(`${process.env.FRONTEND_URL}/success?token=${token}`);
   })(req, res, next);
 };
 
