@@ -1,63 +1,47 @@
 const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
 const dotenv = require('dotenv');
+
 dotenv.config();
 
-const oauth2Client = new google.auth.OAuth2(
+const oAuth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI
 );
 
-oauth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
+oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
 
-const sendEmail = async (to, subject, html) => {
+const sendMail = async ({ to, subject, html, text }) => {
   try {
-    const accessToken = await oauth2Client.getAccessToken();
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-    const message = [
-      `From: ${process.env.SENDER_EMAIL}`,
-      `To: ${to}`,
-      'Content-Type: text/html; charset=utf-8',
-      `MIME-Version: 1.0`,
-      `Subject: ${subject}`,
-      '',
-      html
-    ].join('\n').trim();
-
-    const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
-
-    await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: {
-        raw: encodedMessage
-      }
+    const { token } = await oAuth2Client.getAccessToken();
+    const transport = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.SENDER_EMAIL,
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        refreshToken: process.env.REFRESH_TOKEN,
+        accessToken: token,
+      },
     });
 
-    console.log(`Email sent to ${to}`);
-  } catch (error) {
-    console.error('Email send failed:', error);
-    throw error;
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to,
+      subject,
+      text,
+      html,
+    };
+
+    const result = await transport.sendMail(mailOptions);
+    console.log('Email sent:', result.messageId);
+    return result;
+  } catch (err) {
+    console.error('Email send error:', err);
+    throw new Error('Failed to send email. Please try again.');
   }
 };
 
-const sendVerificationEmail = async (email, code) => {
-  const html = `
-    <h2>Email Verification</h2>
-    <p>Your verification code is: <strong>${code}</strong></p>
-    <p>This code expires in 10 minutes.</p>
-  `;
-  await sendEmail(email, 'Verify Your Email', html);
-};
-
-const sendResetEmail = async (email, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset.html?token=${token}`;
-  const html = `
-    <h2>Password Reset</h2>
-    <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-    <p>This link expires in 1 hour.</p>
-  `;
-  await sendEmail(email, 'Reset Your Password', html);
-};
-
-module.exports = { sendVerificationEmail, sendResetEmail };
+module.exports = { sendMail };

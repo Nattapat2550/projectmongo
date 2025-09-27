@@ -3,22 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register</title>
+    <title>Register - App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header><nav><a href="index.html">Home</a> <a href="login.html">Login</a></nav></header>
+    <nav id="navbar">
+        <div class="nav-left">App Logo</div>
+        <div class="nav-right" id="nav-right">
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="login.html">Login</a>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+            <img id="avatar" src="/images/user.png" alt="Avatar">
+            <span id="username-nav"></span>
+            <div class="dropdown-menu">
+                <a href="settings.html">Settings</a>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
     <main>
+        <h1>Register</h1>
         <form id="register-form">
-            <h2>Register</h2>
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Password" required>
-            <input type="text" id="username" placeholder="Username (optional)">
-            <button type="submit">Register</button>
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+            <button type="submit">Send Verification Code</button>
         </form>
         <p id="message"></p>
         <a href="login.html">Already have an account? Login</a>
     </main>
+    <script src="js/main.js"></script>
     <script src="js/register.js"></script>
 </body>
 </html>

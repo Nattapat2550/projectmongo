@@ -3,22 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Login - App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header><nav><a href="index.html">Home</a> <a href="register.html">Register</a></nav></header>
+    <nav id="navbar">
+        <div class="nav-left">App Logo</div>
+        <div class="nav-right" id="nav-right">
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="register.html">Register</a>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+            <img id="avatar" src="/images/user.png" alt="Avatar">
+            <span id="username-nav"></span>
+            <div class="dropdown-menu">
+                <a href="settings.html">Settings</a>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
     <main>
+        <h1>Login</h1>
         <form id="login-form">
-            <h2>Login</h2>
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Password" required>
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" required>
+            <label>
+                <input type="checkbox" id="hide-password"> Hide password
+            </label>
+            <label>
+                <input type="checkbox" id="remember"> Remember me
+            </label>
             <button type="submit">Login</button>
         </form>
+        <button id="google-login">Login with Google</button>
         <p id="message"></p>
-        <a href="reset.html">Forgot Password?</a>
-        <button onclick="googleLogin()">Login with Google</button>
+        <a href="reset.html" id="forgot-link">Forgot password?</a>
     </main>
+    <script src="js/main.js"></script>
     <script src="js/login.js"></script>
 </body>
 </html>

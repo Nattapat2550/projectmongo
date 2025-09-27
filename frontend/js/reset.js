@@ -1,46 +1,51 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const forgotForm = document.getElementById('forgot-form');
-  const resetForm = document.getElementById('reset-form');
+  const form = document.getElementById('reset-form');
   const message = document.getElementById('message');
+  const passwordInput = document.getElementById('password');
+  const confirmInput = document.getElementById('confirm-password');
+  const hideCheckbox = document.getElementById('hide-password');
 
-  // Check for token in URL (after email click)
+  // Get token from URL
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
-  if (token) {
-    forgotForm.style.display = 'none';
-    resetForm.style.display = 'block';
-    resetForm.querySelector('input[name="token"]').value = token; // Hidden input if needed
+  if (!token) {
+    showMessage('Invalid reset link', 'error');
+    return;
   }
 
-  forgotForm.addEventListener('submit', async (e) => {
+  // Password hide toggle
+  hideCheckbox.addEventListener('change', () => {
+    const type = hideCheckbox.checked ? 'password' : 'text';
+    passwordInput.type = type;
+    confirmInput.type = type;
+  });
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = { email: document.getElementById('email').value };
+    const password = passwordInput.value;
+    const confirm = confirmInput.value;
+
+    if (password.length < 8 || password !== confirm) {
+      showMessage('Password must be 8+ characters and match', 'error');
+      return;
+    }
 
     try {
-      await apiCall('/auth/forgot', { method: 'POST', body: JSON.stringify(data) });
-      message.textContent = 'Reset link sent to your email.';
-      message.className = 'success';
-    } catch (error) {
-      message.textContent = error.message;
-      message.className = 'error';
+      const data = await apiFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+      });
+      if (data.ok && data.redirect) {
+        showMessage('Password reset! Redirecting...', 'success');
+        window.location.href = data.redirect;
+      }
+    } catch (err) {
+      showMessage(err.message, 'error');
     }
   });
 
-  resetForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = {
-      token,
-      password: document.getElementById('new-password').value
-    };
-
-    try {
-      await apiCall('/auth/reset', { method: 'POST', body: JSON.stringify(data) });
-      message.textContent = 'Password reset successful! Login now.';
-      message.className = 'success';
-      window.location.href = 'login.html';
-    } catch (error) {
-      message.textContent = error.message;
-      message.className = 'error';
-    }
-  });
+  const showMessage = (msg, type) => {
+    message.textContent = msg;
+    message.className = type;
+  };
 });

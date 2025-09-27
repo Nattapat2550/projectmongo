@@ -1,28 +1,50 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 
-const authMiddleware = async (req, res, next) => {
+const verifyJWT = (req, res, next) => {
+  let token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ ok: false, message: 'No token provided' });
+  }
+
   try {
-    let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies.token) {
-      token = req.cookies.token;
-    } else if (req.session.token) {
-      token = req.session.token;
-    }
-
-    if (!token) return res.status(401).json({ error: 'No token provided' });
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-passwordHash');
-    if (!user) return res.status(401).json({ error: 'User  not found' });
-
-    req.user = user;
+    req.user = { id: decoded.id, role: decoded.role };
     next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    res.status(403).json({ ok: false, message: 'Invalid or expired token' });
   }
 };
 
-module.exports = authMiddleware;
+const requireAuth = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ ok: false, message: 'Authentication required' });
+  }
+  next();
+};
+
+const requireAdmin = (req, res, next) => {
+  requireAuth(req, res, () => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ ok: false, message: 'Admin access required' });
+    }
+    next();
+  });
+};
+
+// Helper to set JWT cookie
+const setJWTCookie = (res, user, remember = false) => {
+  const payload = { id: user._id, role: user.role };
+  const maxAge = remember ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000; // 30d or 7d
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: maxAge / 1000 });
+
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge,
+  });
+};
+
+module.exports = { verifyJWT, requireAuth, requireAdmin, setJWTCookie };

@@ -1,174 +1,55 @@
-/* Global Styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* Reset and base styles */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; line-height: 1.6; color: var(--text-color); background: var(--bg-color); transition: background 0.3s, color 0.3s; }
+.light { --bg-color: #fff; --text-color: #333; --primary-color: #007bff; --secondary-color: #6c757d; --border-color: #ddd; }
+.dark { --bg-color: #333; --text-color: #fff; --primary-color: #0d6efd; --secondary-color: #adb5bd; --border-color: #555; }
+main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+h1 { margin-bottom: 1rem; color: var(--primary-color); }
 
-body {
-    font-family: Arial, sans-serif;
-    line-height: 1.6;
-    color: #333;
-    background-color: #f4f4f4;
-    transition: background-color 0.3s, color 0.3s;
-}
+/* Navbar */
+#navbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
+.nav-left { font-size: 1.5rem; font-weight: bold; }
+.nav-right { display: flex; gap: 1rem; }
+.nav-right a { color: var(--text-color); text-decoration: none; }
+.profile-dropdown { display: flex; align-items: center; gap: 0.5rem; position: relative; cursor: pointer; }
+#avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--bg-color); border: 1px solid var(--border-color); min-width: 150px; z-index: 1000; }
+.dropdown-menu a, .dropdown-menu button { display: block; width: 100%; padding: 0.5rem; border: none; background: none; text-align: left; color: var(--text-color); text-decoration: none; cursor: pointer; }
+.dropdown-menu a:hover, .dropdown-menu button:hover { background: var(--border-color); }
+.profile-dropdown:hover .dropdown-menu, .profile-dropdown.active .dropdown-menu { display: block; }
 
-body.dark {
-    background-color: #333;
-    color: #f4f4f4;
-}
+/* Forms */
+form { display: flex; flex-direction: column; gap: 1rem; background: var(--bg-color); padding: 2rem; border: 1px solid var(--border-color); border-radius: 8px; }
+label { font-weight: bold; }
+input, textarea, button { padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; }
+input[type="file"] { padding: 0.25rem; }
+button { background: var(--primary-color); color: white; border: none; cursor: pointer; font-size: 1rem; }
+button:hover { opacity: 0.9; }
+button[type="button"] { background: var(--secondary-color); }
+#message { margin-top: 1rem; padding: 0.5rem; border-radius: 4px; }
+#message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+#message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+a { color: var(--primary-color); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-header {
-    background: #007bff;
-    color: white;
-    padding: 1rem;
-}
+/* Home content */
+#hero { background: var(--border-color); padding: 2rem; margin-bottom: 2rem; border-radius: 8px; }
+#blocks { display: flex; flex-direction: column; gap: 1rem; }
 
-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 1200px;
-    margin: 0 auto;
-}
+/* Settings preview */
+#photo-preview { margin-top: 0.5rem; border-radius: 50%; }
 
-nav a {
-    color: white;
-    text-decoration: none;
-    margin: 0 1rem;
-    padding: 0.5rem;
-    border-radius: 4px;
-    transition: background 0.3s;
-}
-
-nav a:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-main {
-    max-width: 1200px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-}
-
-form {
-    background: white;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-body.dark form {
-    background: #444;
-}
-
-input, textarea, select, button {
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-body.dark input, body.dark textarea, body.dark select {
-    background: #555;
-    color: #f4f4f4;
-    border-color: #666;
-}
-
-button {
-    background: #007bff;
-    color: white;
-    border: none;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-button:hover {
-    background: #0056b3;
-}
-
-#message {
-    margin-top: 1rem;
-    padding: 1rem;
-    border-radius: 4px;
-    text-align: center;
-}
-
-#message.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-#message.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
-footer {
-    text-align: center;
-    padding: 1rem;
-    background: #007bff;
-    color: white;
-    margin-top: 2rem;
-}
-
-#profile {
-    text-align: center;
-    margin: 2rem 0;
-}
-
-#profile img {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-bottom: 1rem;
-}
-
-#admin-panel, #dashboard {
-    display: grid;
-    gap: 1rem;
-}
-
-#users-list {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-body.dark #users-list {
-    background: #444;
-}
-
-.user-item {
-    padding: 0.5rem;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    justify-content: space-between;
-}
-
-body.dark .user-item {
-    border-bottom-color: #666;
-}
+/* Admin table */
+#users-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+#users-table th, #users-table td { padding: 0.5rem; border: 1px solid var(--border-color); text-align: left; }
+#users-table th { background: var(--border-color); }
+#pagination { margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center; }
+#pagination button { padding: 0.25rem 0.5rem; }
 
 /* Responsive */
 @media (max-width: 768px) {
-    nav {
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    form {
-        margin: 1rem;
-        padding: 1rem;
-    }
+    #navbar { flex-direction: column; gap: 1rem; }
+    .nav-right { flex-wrap: wrap; justify-content: center; }
+    main { margin: 1rem; padding: 0; }
+    form { padding: 1rem; }
 }

@@ -1,107 +1,67 @@
-require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
 const mongoose = require('mongoose');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const path = require('path');
+const dotenv = require('dotenv');
 
-// Optional: Redis for sessions (uncomment if REDIS_URL set in Render)
-// const RedisStore = require('connect-redis').default;
-// const { createClient } = require('redis');
-// (require('redis').createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' })).connect();
+dotenv.config();
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
+const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const homepageRoutes = require('./routes/homepage');
-const authMiddleware = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-// Fallback secrets (replace with real env vars in Render)
-const sessionSecret = process.env.SESSION_SECRET || 'fallback-session-secret-change-me';
-const jwtSecret = process.env.JWT_SECRET || 'fallback-jwt-secret-change-me';
+// Security middleware
+app.use(helmet());
+app.use(morgan('combined'));
 
-// Middleware
-app.use(cors({ 
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000', 
-  credentials: true 
+// CORS setup for credentials (allows frontend to send cookies)
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Session setup (MemoryStore OK for low traffic; Redis for scale)
-app.use(session({
-  secret: sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production', 
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000 
-  },
-  name: 'projectmongo.sid'
-}));
+// Serve frontend statically (for single-host deploys like Render)
+app.use(express.static(path.join(__dirname, '../frontend')));
 
-// API Routes (must come before static/catch-all)
+// Serve uploads publicly
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authMiddleware, userRoutes);
-app.use('/api/admin', authMiddleware, adminRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/homepage', homepageRoutes);
 
-// Serve static frontend in production (MPA/SPA hybrid)
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend')));
-  
-  // FIXED: Middleware catch-all (bypasses path-to-regexp entirely; no parsing errors)
-  // Serves static files directly; falls back to index.html for unmatched frontend paths
-  app.use((req, res, next) => {
-    // Skip API routes, non-GET methods, and already-handled static files
-    if (req.path.startsWith('/api') || req.method !== 'GET') {
-      return next();
-    }
-    // Fallback: Serve index.html for any frontend deep link or root
-    res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
-  });
-}
-
-// Global 404 handler for unmatched API routes (after all middleware)
-app.use((req, res) => {
-  res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
+// Catch-all for frontend routes (SPA-like, but since static HTML, serves index.html for unmatched)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// Start server after DB connection
-const startServer = async () => {
-  try {
-    await connectDB();
-    const server = app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-      console.log(`📡 Frontend served from: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-      console.log(`🔗 API base: ${process.env.SERVER_URL || 'http://localhost:' + PORT}/api`);
-    });
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({ ok: false, message: err.message || 'Internal server error' });
+});
 
-    // Graceful shutdown for Render restarts
-    process.on('SIGTERM', () => {
-      console.log('🛑 SIGTERM received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', () => {
-      console.log('🛑 SIGINT received, shutting down');
-      server.close(() => process.exit(0));
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
-  }
-};
-
-startServer();
+// Connect DB and start server
+connectDB().then(() => {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error('Failed to connect to DB:', err);
+  process.exit(1);
+});

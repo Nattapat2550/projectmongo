@@ -1,57 +1,75 @@
 const express = require('express');
+const { body, validationResult } = require('express-validator');
 const User = require('../models/user');
-const Homepage = require('../models/homepage');
+const { verifyJWT, requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Middleware to check admin (in auth.js, but inline here for completeness; better in middleware/auth.js)
-const isAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  next();
-};
+// GET /api/admin/users (paginated, exclude sensitive fields)
+router.get('/users', verifyJWT, requireAuth, requireAdmin, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-// Get all users
-router.get('/users', isAdmin, async (req, res) => {
   try {
-    const users = await User.find().select('-passwordHash');
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const users = await User.find({})
+      .select('-password -verificationCode -codeExpires -resetToken -resetTokenExp')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+    const total = await User.countDocuments();
+    res.status(200).json({
+      ok: true,
+      data: { users, pagination: { page, limit, total, pages: Math.ceil(total / limit) } }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Failed to fetch users' });
   }
 });
 
-// Delete user
-router.delete('/users/:id', isAdmin, async (req, res) => {
+// PUT /api/admin/users/:id
+router.put('/users/:id',
+  verifyJWT, requireAuth, requireAdmin,
+  [body('username').optional().trim().escape().isLength({ min: 3, max: 30 }),
+   body('email').optional().isEmail().normalizeEmail(),
+   body('role').optional().isIn(['user', 'admin'])],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ ok: false, message: errors.array()[0].msg });
+    }
+
+    try {
+      const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+        .select('-password');
+      if (!user) return res.status(404).json({ ok: false, message: 'User  not found' });
+      res.status(200).json({ ok: true, data: user });
+    } catch (err) {
+      res.status(500).json({ ok: false, message: 'Update failed' });
+    }
+  }
+);
+
+// DELETE /api/admin/users/:id
+router.delete('/users/:id', verifyJWT, requireAuth, requireAdmin, async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: 'User  deleted' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ ok: false, message: 'User  not found' });
+    res.status(200).json({ ok: true, message: 'User  deleted' });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Deletion failed' });
   }
 });
 
-// Update homepage content
-router.put('/homepage/:slug', isAdmin, async (req, res) => {
+// GET /api/admin/export-users (simple JSON; CSV optional via client-side)
+router.get('/export-users', verifyJWT, requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { title, body, metadata } = req.body;
-    const content = await Homepage.findOneAndUpdate(
-      { slug: req.params.slug },
-      { title, body, metadata },
-      { new: true, upsert: true }
-    );
-    res.json(content);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get homepage content
-router.get('/homepage/:slug', isAdmin, async (req, res) => {
-  try {
-    const content = await Homepage.findOne({ slug: req.params.slug });
-    res.json(content || null);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const users = await User.find({})
+      .select('username email role createdAt')
+      .sort({ createdAt: -1 });
+    res.status(200).json({ ok: true, data: users }); // Client can convert to CSV
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Export failed' });
   }
 });
 

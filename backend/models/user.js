@@ -1,38 +1,39 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash: { type: String, default: null },
-  username: { type: String, unique: true, sparse: true },
-  profilePicture: { type: String, default: null },
+  emailVerified: { type: Boolean, default: false },
+  verificationCode: { type: String }, // 6-digit code
+  codeExpires: { type: Date },
+  username: { type: String, trim: true, default: null },
+  password: { type: String }, // hashed
+  photo: { type: String, default: '/images/user.png' }, // path or URL
+  authProvider: { type: String, enum: ['local', 'google'], default: 'local' },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  isEmailVerified: { type: Boolean, default: false },
-  oauthProvider: { type: String, default: null },
-  oauthId: { type: String, default: null },
-  theme: { type: String, enum: ['light', 'dark'], default: 'light' },
+  resetToken: { type: String }, // JWT for reset
+  resetTokenExp: { type: Date }, // optional
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Indexes: Rely on field-level { unique: true } – no explicit schema.index() needed
-// userSchema.index({ email: 1 }, { unique: true });  // REMOVED: Duplicate
-// userSchema.index({ username: 1 }, { unique: true, sparse: true });  // REMOVED: Duplicate
-userSchema.index({ role: 1 });  // Keep non-unique indexes
-
-// Pre-save: hash password, update timestamp
-userSchema.pre('save', async function(next) {
-  if (this.isModified('passwordHash')) {
-    this.passwordHash = await bcrypt.hash(this.passwordHash, 12);
-  }
+// Pre-save hook for updatedAt
+UserSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  if (!this.passwordHash) return false;
-  return bcrypt.compare(candidatePassword, this.passwordHash);
-};
+// Hash password before saving (for local auth)
+UserSchema.pre('save', async function (next) {
+  if (this.isModified('password') && this.authProvider === 'local') {
+    try {
+      const salt = await bcrypt.genSalt(12);
+      this.password = await bcrypt.hash(this.password, salt);
+    } catch (err) {
+      return next(err);
+    }
+  }
+  next();
+});
 
-module.exports = mongoose.model('User ', userSchema);  // Fixed: Was 'User  ' (typo with space)
+module.exports = mongoose.model('User ', UserSchema);

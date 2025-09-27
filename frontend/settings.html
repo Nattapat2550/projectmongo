@@ -3,22 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings</title>
+    <title>Settings - App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header><nav><a href="home.html">Home</a> <a href="login.html" onclick="logout()">Logout</a></nav></header>
+    <nav id="navbar">
+        <div class="nav-left">App Logo</div>
+        <div class="nav-right" id="nav-right">
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+            <img id="avatar" src="/images/user.png" alt="Avatar">
+            <span id="username-nav"></span>
+            <div class="dropdown-menu">
+                <a href="home.html">Home</a>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
     <main>
-        <h2>Settings</h2>
+        <h1>Settings</h1>
         <form id="settings-form">
-            <input type="file" id="profile-pic-upload">
-            <select id="theme">
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-            </select>
-            <button type="submit">Update</button>
+            <label for="username">Username:</label>
+            <input type="text" id="username" minlength="3" maxlength="30">
+            <label for="photo">Profile Photo:</label>
+            <input type="file" id="photo" accept="image/*">
+            <img id="photo-preview" src="/images/user.png" alt="Preview" style="max-width: 100px; display: none;">
+            <label>
+                <input type="checkbox" id="theme-toggle"> Dark theme
+            </label>
+            <button type="button" id="change-password-btn">Change Password</button>
+            <button type="submit">Update Profile</button>
+            <button type="button" id="delete-account-btn">Delete Account</button>
         </form>
+        <p id="message"></p>
+        <a href="home.html">Back to Home</a>
     </main>
+    <script src="js/main.js"></script>
     <script src="js/settings.js"></script>
 </body>
 </html>

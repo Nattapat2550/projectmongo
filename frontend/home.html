@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
+    <title>Home - App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="home.html">Dashboard</a>
-            <a href="settings.html">Settings</a>
-            <a href="login.html" onclick="logout()">Logout</a>
-        </nav>
-    </header>
-    <main id="dashboard">
-        <h2>Welcome, <span id="username"></span>!</h2>
-        <div id="profile">
-            <img src="images/user.png" alt="Profile" id="profile-pic">
-            <p id="email"></p>
+    <nav id="navbar">
+        <div class="nav-left">App Logo</div>
+        <div class="nav-right" id="nav-right">
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
         </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+            <img id="avatar" src="/images/user.png" alt="Avatar">
+            <span id="username-nav"></span>
+            <div class="dropdown-menu">
+                <a href="settings.html">Settings</a>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
+    <main id="home-content">
+        <div id="hero"></div>
+        <div id="blocks"></div>
     </main>
+    <script src="js/main.js"></script>
     <script src="js/home.js"></script>
 </body>
 </html>

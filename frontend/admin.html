@@ -3,21 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin</title>
+    <title>Admin - App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header><nav><a href="home.html">Home</a> <a href="login.html" onclick="logout()">Logout</a></nav></header>
-    <main id="admin-panel">
-        <h2>Admin Panel</h2>
-        <div id="users-list"></div>
-        <form id="homepage-form">
-            <input type="text" id="slug" placeholder="Slug (e.g., hero)">
-            <input type="text" id="title" placeholder="Title">
-            <textarea id="body" placeholder="Body"></textarea>
-            <button type="submit">Update Content</button>
-        </form>
+    <nav id="navbar">
+        <div class="nav-left">App Logo</div>
+        <div class="nav-right" id="nav-right">
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+            <img id="avatar" src="/images/user.png" alt="Avatar">
+            <span id="username-nav"></span>
+            <div class="dropdown-menu">
+                <a href="home.html">Home</a>
+                <a href="settings.html">Settings</a>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </nav>
+    <main>
+        <h1>Admin Panel</h1>
+        <section>
+            <h2>Homepage Content</h2>
+            <form id="content-form">
+                <label for="title">Title:</label>
+                <input type="text" id="title">
+                <label for="hero">Hero Text:</label>
+                <textarea id="hero"></textarea>
+                <label for="blocks">Blocks (JSON array):</label>
+                <textarea id="blocks" placeholder='["Block 1", "Block 2"]'></textarea>
+                <button type="submit">Update Content</button>
+            </form>
+        </section>
+        <section>
+            <h2>Users</h2>
+            <button id="export-users">Export Users (JSON)</button>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="pagination"></div>
+        </section>
+        <p id="message"></p>
     </main>
+    <script src="js/main.js"></script>
     <script src="js/admin.js"></script>
 </body>
 </html>
