@@ -6,9 +6,8 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000,
-      maxPoolSize: 10,
-      bufferCommands: false,  // Disable buffering for faster error reporting
-      bufferMaxEntries: 0
+      maxPoolSize: 10
+      // Removed: bufferCommands: false, bufferMaxEntries: 0 (deprecated in Mongoose 7+)
     });
     console.log(`MongoDB Connected: ${conn.connection.host} (DB: ${conn.connection.name})`);
 

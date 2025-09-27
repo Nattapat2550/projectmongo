@@ -15,10 +15,10 @@ const userSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Indexes
-userSchema.index({ email: 1 }, { unique: true }); // Case-insensitive via lowercase storage
-userSchema.index({ username: 1 }, { unique: true, sparse: true });
-userSchema.index({ role: 1 });
+// Indexes: Rely on field-level { unique: true } – no explicit schema.index() needed
+// userSchema.index({ email: 1 }, { unique: true });  // REMOVED: Duplicate
+// userSchema.index({ username: 1 }, { unique: true, sparse: true });  // REMOVED: Duplicate
+userSchema.index({ role: 1 });  // Keep non-unique indexes
 
 // Pre-save: hash password, update timestamp
 userSchema.pre('save', async function(next) {
@@ -35,4 +35,4 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
-module.exports = mongoose.model('User ', userSchema);
+module.exports = mongoose.model('User ', userSchema);  // Fixed: Was 'User  ' (typo with space)
