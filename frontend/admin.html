@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header><nav><a href="home.html">Home</a> <a href="login.html" onclick="logout()">Logout</a></nav></header>
+    <main id="admin-panel">
+        <h2>Admin Panel</h2>
+        <div id="users-list"></div>
+        <form id="homepage-form">
+            <input type="text" id="slug" placeholder="Slug (e.g., hero)">
+            <input type="text" id="title" placeholder="Title">
+            <textarea id="body" placeholder="Body"></textarea>
+            <button type="submit">Update Content</button>
+        </form>
+    </main>
+    <script src="js/admin.js"></script>
+</body>
+</html>

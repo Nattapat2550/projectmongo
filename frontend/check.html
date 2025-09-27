@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header><nav><a href="index.html">Home</a></nav></header>
+    <main>
+        <form id="check-form">
+            <h2>Enter Verification Code</h2>
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="text" id="code" placeholder="6-digit code" maxlength="6" required>
+            <button type="submit">Verify</button>
+        </form>
+        <p id="message"></p>
+        <a href="register.html">Resend Code</a>
+    </main>
+    <script src="js/check.js"></script>
+</body>
+</html>

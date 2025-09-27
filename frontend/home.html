@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="home.html">Dashboard</a>
+            <a href="settings.html">Settings</a>
+            <a href="login.html" onclick="logout()">Logout</a>
+        </nav>
+    </header>
+    <main id="dashboard">
+        <h2>Welcome, <span id="username"></span>!</h2>
+        <div id="profile">
+            <img src="images/user.png" alt="Profile" id="profile-pic">
+            <p id="email"></p>
+        </div>
+    </main>
+    <script src="js/home.js"></script>
+</body>
+</html>
