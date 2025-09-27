@@ -13,13 +13,13 @@ const { verifyJWT, setJWTCookie } = require('../middleware/auth');
 const router = express.Router();
 
 // Rate limit auth endpoints (5 attempts per 15min)
-const authLimiter = rateLimit({
+/*const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: { ok: false, message: 'Too many attempts, try again later' },
   standardHeaders: true,
   legacyHeaders: false,
-});
+});*/
 
 // Passport Google strategy setup
 passport.use(new (require('passport-google-oauth20').Strategy)({
@@ -64,7 +64,7 @@ passport.deserializeUser (async (id, done) => {
 router.use(passport.initialize());
 
 // POST /api/auth/register
-router.post('/register',
+/*router.post('/register',
   authLimiter,
   [
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
@@ -107,7 +107,7 @@ router.post('/register',
       res.status(500).json({ ok: false, message: 'Registration failed' });
     }
   }
-);
+);*/
 
 // POST /api/auth/verify-code
 router.post('/verify-code',

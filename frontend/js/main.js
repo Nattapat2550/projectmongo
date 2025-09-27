@@ -1,41 +1,56 @@
 // Common utilities
 const SERVER_URL = 'https://projectmongo.onrender.com'; // Override with env if needed; for prod use window.location.origin or env
-const apiFetch = async (path, options = {}) => {
-  const url = `${SERVER_URL}${path}`;
-  const defaults = {
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-  };
-  const response = await fetch(url, { ...defaults, ...options });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Request failed');
-  }
-  return response.json();
-};
+         const apiFetch = async (path, options = {}) => {
+           const url = `${SERVER_URL}${path}`; // SERVER_URL = 'https://projectmongo.onrender.com' for prod
+           const defaults = {
+             headers: { 'Content-Type': 'application/json' },
+             credentials: 'include', // Sends cookies for auth
+           };
+           try {
+             const response = await fetch(url, { ...defaults, ...options });
+             if (!response.ok) {
+               const errorData = await response.json().catch(() => ({})); // Handle non-JSON errors
+               if (response.status === 401) {
+                 // Graceful: Clear cache on auth fail
+                 localStorage.removeItem('userCache');
+                 currentUser  = null;
+                 throw new Error('Unauthorized - please log in'); // Or return null below
+               }
+               throw new Error(errorData.message || `HTTP ${response.status}`);
+             }
+             return response.json();
+           } catch (err) {
+             console.error('API Fetch Error:', err); // Log but don't crash UI
+             throw err;
+           }
+         };
 
 // Get current user (caches briefly in localStorage)
 let currentUser  = null;
 const getCurrentUser  = async () => {
-  if (currentUser ) return currentUser ;
-  try {
-    const data = await apiFetch('/api/users/me');
-    if (data.ok) {
-      currentUser  = data.data;
-      localStorage.setItem('userCache', JSON.stringify({ ...data.data, timestamp: Date.now() }));
-      return data.data;
-    }
-  } catch (err) {
-    console.error('Failed to get user:', err);
-    // Clear cache if expired (5min)
-    const cached = localStorage.getItem('userCache');
-    if (cached) {
-      const { timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp > 5 * 60 * 1000) localStorage.removeItem('userCache');
-    }
-  }
-  return null;
-};
+           if (currentUser ) return currentUser ;
+           try {
+             const data = await apiFetch('/api/users/me');
+             if (data.ok) {
+               currentUser  = data.data;
+               localStorage.setItem('userCache', JSON.stringify({ ...data.data, timestamp: Date.now() }));
+               return data.data;
+             }
+           } catch (err) {
+             if (err.message.includes('Unauthorized')) {
+               console.log('No user session - showing login UI');
+               return null; // Graceful: No user, hide profile
+             }
+             console.error('Failed to get user:', err);
+           }
+           // Clear expired cache
+           const cached = localStorage.getItem('userCache');
+           if (cached) {
+             const { timestamp } = JSON.parse(cached);
+             if (Date.now() - timestamp > 5 * 60 * 1000) localStorage.removeItem('userCache');
+           }
+           return null;
+         };
 
 // Theme toggle
 const initTheme = () => {
