@@ -6,7 +6,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
 
-// Optional: Redis for sessions (uncomment if you add REDIS_URL in Render)
+// Optional: Redis for sessions (uncomment if REDIS_URL set in Render)
 // const RedisStore = require('connect-redis').default;
 // const { createClient } = require('redis');
 // (require('redis').createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' })).connect();
@@ -21,7 +21,7 @@ const authMiddleware = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Fallback secrets (ensure real ones are in Render env vars)
+// Fallback secrets (replace with real env vars in Render)
 const sessionSecret = process.env.SESSION_SECRET || 'fallback-session-secret-change-me';
 const jwtSecret = process.env.JWT_SECRET || 'fallback-jwt-secret-change-me';
 
@@ -34,7 +34,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Session setup (MemoryStore for now; switch to Redis for prod scale)
+// Session setup (MemoryStore OK for low traffic; Redis for scale)
 app.use(session({
   secret: sessionSecret,
   resave: false,
@@ -45,10 +45,10 @@ app.use(session({
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 
   },
-  name: 'projectmongo.sid'  // Avoids default session name conflicts
+  name: 'projectmongo.sid'
 }));
 
-// API Routes (mount before static files)
+// API Routes (must come before static/catch-all)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/admin', authMiddleware, adminRoutes);
@@ -58,15 +58,16 @@ app.use('/api/homepage', homepageRoutes);
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend')));
   
-  // FIXED: Catch-all for client-side routing (use '/*' to avoid PathError)
-  app.get('/*', (req, res) => {
+  // FIXED: Named catch-all for modern path-to-regexp v6+ (avoids "missing param name" error)
+  // Matches any GET path (e.g., /, /register.html, /admin/anything) and serves index.html for routing
+  app.get('/:path(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
   });
 }
 
-// 404 for API routes (optional, but good practice)
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+// Global 404 handler for unmatched API routes (after all routes)
+app.use((req, res) => {
+  res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
 });
 
 // Start server after DB connection
@@ -76,9 +77,10 @@ const startServer = async () => {
     const server = app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
       console.log(`📡 Frontend served from: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`🔗 API base: ${process.env.SERVER_URL || 'http://localhost:' + PORT}/api`);
     });
 
-    // Graceful shutdown
+    // Graceful shutdown for Render restarts
     process.on('SIGTERM', () => {
       console.log('🛑 SIGTERM received, shutting down gracefully');
       server.close(() => {
