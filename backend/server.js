@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
-const fs = require('fs'); // Added for file existence check (optional safety)
+const fs = require('fs'); // For file existence checks in fallback
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -33,35 +33,58 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Serve frontend statically (for single-host deploys like Render)
+// Serve frontend statically (handles direct file access like /register.html)
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Serve uploads publicly
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes (must be before catch-all)
+// API Routes (must be before fallback)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/homepage', homepageRoutes);
 
-// Catch-all middleware for frontend routes (SPA-like fallback to index.html)
-// Fixed: Use app.use('*') to avoid path-to-regexp parsing error in Express 4.19+
-app.use('*', (req, res) => {
-  // Safety: If it's an API path, return 404 (routes above should catch real APIs)
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ ok: false, message: 'API endpoint not found' });
-  }
-  // Optional: Check if file exists (for direct HTML access; static middleware handles known files)
-  const filePath = path.join(__dirname, '../frontend', req.path === '/' ? 'index.html' : `${req.path}.html`);
-  if (fs.existsSync(filePath)) {
-    return res.sendFile(filePath);
-  }
-  // Fallback to index.html for unknown paths
+// Root route: Serve index.html for home page
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// Global error handler
+// Fallback/404 middleware (no path specifier = runs for all unmatched requests; avoids * wildcard bug)
+// Placed AFTER static and routes, so only triggers for truly unknown paths
+app.use((req, res, next) => {
+  // If API path and unmatched, return JSON 404
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ ok: false, message: 'API endpoint not found' });
+  }
+
+  // For non-API: Try to serve exact file if exists (enhances static for .html extensions)
+  let filePath = path.join(__dirname, '../frontend', req.path);
+  if (req.path.endsWith('.html')) {
+    filePath = path.join(__dirname, '../frontend', req.path);
+  } else if (req.path === '/') {
+    filePath = path.join(__dirname, '../frontend/index.html');
+  } else {
+    // For non-HTML paths, append .html if file exists (e.g., /home → /home.html)
+    const htmlPath = path.join(__dirname, '../frontend', req.path + '.html');
+    if (fs.existsSync(htmlPath)) {
+      filePath = htmlPath;
+    } else {
+      // Ultimate fallback: index.html for SPA-like routing (optional; remove if strict multi-page)
+      filePath = path.join(__dirname, '../frontend/index.html');
+    }
+  }
+
+  // Serve if file exists
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+
+  // True 404 if nothing matches
+  res.status(404).json({ ok: false, message: 'Page not found' });
+});
+
+// Global error handler (for server errors)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({ ok: false, message: err.message || 'Internal server error' });
