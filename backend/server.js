@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs'); // Added for file existence check (optional safety)
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -38,19 +39,25 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 // Serve uploads publicly
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
+// Routes (must be before catch-all)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/homepage', homepageRoutes);
 
-// Catch-all for frontend routes (SPA-like, but since static HTML, serves index.html for unmatched)
-// Fixed: Use '/*' instead of '*' to avoid path-to-regexp parsing error in Express 4.19+
-app.get('/*', (req, res) => {
-  // Optional: Skip if it's an API path (though routes above should catch them)
+// Catch-all middleware for frontend routes (SPA-like fallback to index.html)
+// Fixed: Use app.use('*') to avoid path-to-regexp parsing error in Express 4.19+
+app.use('*', (req, res) => {
+  // Safety: If it's an API path, return 404 (routes above should catch real APIs)
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ ok: false, message: 'API endpoint not found' });
   }
+  // Optional: Check if file exists (for direct HTML access; static middleware handles known files)
+  const filePath = path.join(__dirname, '../frontend', req.path === '/' ? 'index.html' : `${req.path}.html`);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  // Fallback to index.html for unknown paths
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
