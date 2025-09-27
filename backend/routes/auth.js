@@ -4,7 +4,7 @@ const rateLimit = require('express-rate-limit');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid'); // For unique tokens if needed
+//const { v4: uuidv4 } = require('uuid');  For unique tokens if needed
 const User = require('../models/user');
 const { generateCode } = require('../utils/generateCode');
 const { sendMail } = require('../utils/gmail');
@@ -17,6 +17,8 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: { ok: false, message: 'Too many attempts, try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Passport Google strategy setup
