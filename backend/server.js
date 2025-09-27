@@ -45,7 +45,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/homepage', homepageRoutes);
 
 // Catch-all for frontend routes (SPA-like, but since static HTML, serves index.html for unmatched)
-app.get('*', (req, res) => {
+// Fixed: Use '/*' instead of '*' to avoid path-to-regexp parsing error in Express 4.19+
+app.get('/*', (req, res) => {
+  // Optional: Skip if it's an API path (though routes above should catch them)
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ ok: false, message: 'API endpoint not found' });
+  }
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
