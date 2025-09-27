@@ -54,18 +54,23 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/admin', authMiddleware, adminRoutes);
 app.use('/api/homepage', homepageRoutes);
 
-// Serve static frontend in production (SPA mode)
+// Serve static frontend in production (MPA/SPA hybrid)
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend')));
   
-  // FIXED: Named catch-all for modern path-to-regexp v6+ (avoids "missing param name" error)
-  // Matches any GET path (e.g., /, /register.html, /admin/anything) and serves index.html for routing
-  app.get('/:path(.*)', (req, res) => {
+  // FIXED: Middleware catch-all (bypasses path-to-regexp entirely; no parsing errors)
+  // Serves static files directly; falls back to index.html for unmatched frontend paths
+  app.use((req, res, next) => {
+    // Skip API routes, non-GET methods, and already-handled static files
+    if (req.path.startsWith('/api') || req.method !== 'GET') {
+      return next();
+    }
+    // Fallback: Serve index.html for any frontend deep link or root
     res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
   });
 }
 
-// Global 404 handler for unmatched API routes (after all routes)
+// Global 404 handler for unmatched API routes (after all middleware)
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
 });
