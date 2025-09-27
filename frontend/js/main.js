@@ -1,5 +1,5 @@
 // Common utilities
-const SERVER_URL = 'http://localhost:5000'; // Override with env if needed; for prod use window.location.origin or env
+const SERVER_URL = 'https://projectmongo.onrender.com'; // Override with env if needed; for prod use window.location.origin or env
 const apiFetch = async (path, options = {}) => {
   const url = `${SERVER_URL}${path}`;
   const defaults = {
