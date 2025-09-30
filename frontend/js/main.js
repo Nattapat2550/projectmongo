@@ -1,33 +1,84 @@
 (function () {
+  /* ================== CONFIG ================== */
   const FRONTEND_HOST = 'https://projectmongo-1.onrender.com';
   const BACKEND_HOST  = 'https://projectmongo.onrender.com';
   const onFrontend = location.origin === FRONTEND_HOST;
   window.API_BASE = onFrontend ? BACKEND_HOST : '';
 
-  function setToken(t){ if(!t)return; try{sessionStorage.setItem('authToken',t)}catch{} try{localStorage.setItem('authToken',t)}catch{} }
-  function getToken(){ let t=null; try{t=sessionStorage.getItem('authToken')}catch{} if(!t){try{t=localStorage.getItem('authToken')}catch{}} return t||null; }
-  function clearToken(){ try{sessionStorage.removeItem('authToken')}catch{} try{localStorage.removeItem('authToken')}catch{} }
+  /* ================== TOKEN HELPERS ================== */
+  function setToken(t){
+    if(!t) return;
+    try{ sessionStorage.setItem('authToken', t); }catch{}
+    try{ localStorage.setItem('authToken', t); }catch{}
+  }
+  function getToken(){
+    let t = null;
+    try{ t = sessionStorage.getItem('authToken'); }catch{}
+    if(!t){ try{ t = localStorage.getItem('authToken'); }catch{} }
+    return t || null;
+  }
+  function clearToken(){
+    try{ sessionStorage.removeItem('authToken'); }catch{}
+    try{ localStorage.removeItem('authToken'); }catch{}
+  }
 
+  /* ============ Capture token from URL (google / verify) ============ */
   (function captureTokenFromURL(){
-    let token=null; const m=(location.hash||'').match(/[#&]token=([^&]+)/);
+    let token=null;
+    const m=(location.hash||'').match(/[#&]token=([^&]+)/);
     if(m) token=decodeURIComponent(m[1]);
-    if(!token){ const qs=new URLSearchParams(location.search); if(qs.get('token')) token=qs.get('token'); }
+    if(!token){
+      const qs=new URLSearchParams(location.search);
+      if(qs.get('token')) token=qs.get('token');
+    }
     if(token){
       setToken(token);
+      // clean URL (remove token from hash & query)
       const cleanQS = location.search.replace(/([?&])token=[^&]+(&)?/,'$1').replace(/[?&]$/,'');
       history.replaceState({}, document.title, location.pathname + cleanQS);
     }
   })();
 
-  function autoRedirectIfLoggedIn(){
-    const path = location.pathname;
-    const isIndex = path === '/' || path.endsWith('/index.html');
-    if(!isIndex) return;
+  /* ================== FETCH WRAPPER ================== */
+  const ORIG_FETCH = window.fetch.bind(window);
+  window.fetch = (input, init={})=>{
+    if(typeof input==='string' && input.startsWith('/api/')){
+      input = (window.API_BASE||'') + input;
+    }
+    init.credentials='include';
+    init.headers = init.headers || {};
     const t = getToken();
-    if(t){ location.replace('/home.html'); return; }
-    (async()=>{ try{ const r=await fetch('/api/users/me'); if(r.ok) location.replace('/home.html'); }catch{} })();
-  }
+    if(t && !('Authorization' in init.headers)){
+      init.headers['Authorization'] = `Bearer ${t}`;
+    }
+    return ORIG_FETCH(input, init);
+  };
 
+  // Helper: store token from JSON response (login / complete-registration)
+  window.captureTokenFromResponse = function (data) {
+    if (data && data.token) setToken(data.token);
+  };
+
+  // Helper: build /api/* absolute URL for redirects
+  window.apiURL = (path) => (path && path.startsWith('/api/') ? (API_BASE + path) : path);
+
+  /* ================== THEME ================== */
+  (function initTheme(){
+    const saved=localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.classList.remove('theme-light','theme-dark');
+    document.documentElement.classList.add(theme==='dark'?'theme-dark':'theme-light');
+  })();
+  window.toggleTheme = function(){
+    const isDark = document.documentElement.classList.contains('theme-dark');
+    const next = isDark ? 'theme-light' : 'theme-dark';
+    document.documentElement.classList.remove('theme-light','theme-dark');
+    document.documentElement.classList.add(next);
+    localStorage.setItem('theme', next==='theme-dark' ? 'dark' : 'light');
+  };
+
+  /* ================== NAVBAR POPULATE ================== */
   window.buildAssetURL = function(p){
     if(!p) return '/images/user.png';
     if(/^(https?:)?\/\//i.test(p)) return p;
@@ -37,50 +88,24 @@
     return p;
   };
 
-  const ORIG_FETCH = window.fetch.bind(window);
-  window.fetch = (input, init={})=>{
-    if(typeof input==='string' && input.startsWith('/api/')) input=(window.API_BASE||'')+input;
-    init.credentials='include';
-    init.headers=init.headers||{};
-    const t=getToken();
-    if(t && !('Authorization' in init.headers)) init.headers['Authorization']=`Bearer ${t}`;
-    return ORIG_FETCH(input, init);
-  };
-
-  window.captureTokenFromResponse = function(data){ if(data && data.token) setToken(data.token); };
-  window.apiURL = (path)=> (path && path.startsWith('/api/') ? ((window.API_BASE||'')+path) : path);
-
-  (function initTheme(){
-    const saved=localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = saved || (prefersDark ? 'dark':'light');
-    document.documentElement.classList.remove('theme-light','theme-dark');
-    document.documentElement.classList.add(theme==='dark'?'theme-dark':'theme-light');
-  })();
-  window.toggleTheme = function(){
-    const isDark = document.documentElement.classList.contains('theme-dark');
-    const next = isDark ? 'theme-light':'theme-dark';
-    document.documentElement.classList.remove('theme-light','theme-dark');
-    document.documentElement.classList.add(next);
-    localStorage.setItem('theme', next==='theme-dark'?'dark':'light');
-  };
-
   window.populateNavbar = async function(){
     const nameEl = document.getElementById('nav-username');
     const imgEl  = document.getElementById('nav-avatar');
-    if(imgEl){ imgEl.src='/images/user.png'; imgEl.onerror=()=>{imgEl.src='/images/user.png'}; }
+    if (imgEl) {
+      imgEl.src = '/images/user.png';
+      imgEl.onerror = ()=>{ imgEl.src='/images/user.png'; };
+    }
     try{
       const res = await fetch('/api/users/me');
       if(!res.ok) return;
       const data = await res.json();
-      if(nameEl) nameEl.textContent = data.username || data.email || 'User';
-      if(imgEl){
-        let p = data.profilePicture || '/images/user.png';
-        p = p.replace(/^\/+(?=https?:\/\/)/i,'');
-        if(/^(https?:)?\/\//i.test(p)) imgEl.src=p;
-        else if(p.startsWith('/api/') || p.startsWith('/uploads/')) imgEl.src=(window.API_BASE||'')+p;
-        else if(p.startsWith('/images/')) imgEl.src=p;
-        else imgEl.src='/images/user.png';
+      if (nameEl) nameEl.textContent = data.username || data.email || 'User';
+      if (imgEl) {
+        let p = (data.profilePicture || '/images/user.png').replace(/^\/+(?=https?:\/\/)/i,'');
+        if (/^(https?:)?\/\//i.test(p))       imgEl.src = p;
+        else if (p.startsWith('/api/') || p.startsWith('/uploads/')) imgEl.src = (window.API_BASE||'') + p;
+        else if (p.startsWith('/images/'))    imgEl.src = p;
+        else                                   imgEl.src = '/images/user.png';
       }
     }catch{}
   };
@@ -89,22 +114,122 @@
     return function(){
       const dd=document.querySelector('.dropdown');
       if(!dd || dd.dataset.init==='1') return; dd.dataset.init='1';
-      dd.addEventListener('click',(e)=>{ if(!e.target.closest('.menu')) dd.classList.toggle('open'); e.stopPropagation();});
-      document.addEventListener('click',(e)=>{ if(!dd.contains(e.target)) dd.classList.remove('open'); });
-      document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') dd.classList.remove('open'); });
+      dd.addEventListener('click',(e)=>{
+        if(!e.target.closest('.menu')) dd.classList.toggle('open');
+        e.stopPropagation();
+      });
+      document.addEventListener('click',(e)=>{
+        if(!dd.contains(e.target)) dd.classList.remove('open');
+      });
+      document.addEventListener('keydown',(e)=>{
+        if(e.key==='Escape') dd.classList.remove('open');
+      });
     };
   })();
 
+  /* ================== LOGOUT ================== */
   window.handleLogout = async function(){
-    try{ await fetch('/api/auth/logout',{method:'POST'});}catch{}
-    try{ sessionStorage.removeItem('authToken'); localStorage.removeItem('authToken'); }catch{}
+    try{ await fetch('/api/auth/logout', { method:'POST' }); }catch{}
+    clearToken();
     location.href='/login.html';
   };
-  document.addEventListener('click',(e)=>{ const btn=e.target.closest('#logout-btn'); if(btn){ e.preventDefault(); handleLogout(); } });
+  document.addEventListener('click',(e)=>{
+    const btn = e.target.closest('#logout-btn');
+    if(btn){ e.preventDefault(); handleLogout(); }
+  });
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    autoRedirectIfLoggedIn();
+  /* ================== AUTO INDEX REDIRECT IF LOGGED IN ================== */
+  function autoRedirectIfLoggedIn(){
+    const path = location.pathname;
+    const isIndex = (path === '/' || path.endsWith('/index.html'));
+    if(!isIndex) return;
+    const t = getToken();
+    if(t){ location.replace('/home.html'); return; }
+    (async()=>{
+      try{
+        const r = await fetch('/api/users/me');
+        if(r.ok) location.replace('/home.html');
+      }catch{}
+    })();
+  }
+
+  /* ================== ROUTE GUARD ==================
+     - ถ้าไม่มี token และหน้าไม่ใช่: index, about, contact, login, register, reset -> ไป index
+     - ถ้า role=user และหน้าไม่ใช่: about, contact, settings, home, index, reset -> ไป home
+  ================================================== */
+  async function routeGuard(){
+    const path = location.pathname.toLowerCase();
+    // หน้าสาธารณะ (เข้าถึงได้แม้ไม่มี token)
+    const PUBLIC = new Set([
+      '/', '/index.html',
+      '/about.html',
+      '/contact.html',
+      '/login.html',
+      '/register.html',
+      '/reset.html'     // อนุญาต เพราะผู้ใช้เปิดจากเมลได้ หรือวาง token เอง
+    ]);
+
+    // ถ้าหน้าปัจจุบันอยู่ใน PUBLIC -> ผ่าน
+    if (PUBLIC.has(path)) return;
+
+    // ตรวจว่ามี token ใน storage ไหม
+    const t = getToken();
+    // ถ้าไม่มี token พยายามใช้ cookie (เรียก /me)
+    let user = null;
+    try{
+      const r = await fetch('/api/users/me');
+      if (r.ok) user = await r.json();
+    }catch{}
+
+    // ไม่มี token และ /me ก็ไม่ได้ (401) -> กลับ index
+    if (!t && !user) {
+      location.replace('/index.html');
+      return;
+    }
+
+    // ถ้ายังไม่ได้โหลด user (มีแค่ token) ลองดึง /me เพื่อเช็ค role
+    if (!user) {
+      try{
+        const r = await fetch('/api/users/me');
+        if (r.ok) user = await r.json();
+      }catch{}
+    }
+
+    // ถ้าดึงไม่ได้จริง ๆ ให้ปล่อยผ่าน (จะเจอ 401 ในหน้าเอง)
+    if (!user) return;
+
+    // บังคับสิทธิ์ role=user
+    if (user.role === 'user') {
+      const USER_ALLOWED = new Set([
+        '/', '/index.html',
+        '/about.html',
+        '/contact.html',
+        '/settings.html',
+        '/home.html',
+        '/reset.html'
+      ]);
+      if (!USER_ALLOWED.has(path)) {
+        location.replace('/home.html');
+        return;
+      }
+    }
+    // role=admin ให้ผ่านทุกหน้า
+  }
+
+  /* ================== DOM READY ================== */
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // แก้ src="/https://..." ถ้ามีใน DOM แบบ static
     const img=document.getElementById('nav-avatar');
-    if(img){ const raw=img.getAttribute('src')||''; if(/^\/+(?=https?:\/\/)/i.test(raw)) img.setAttribute('src', raw.replace(/^\/+(?=https?:\/\/)/i,'')); img.onerror=()=>{img.src='/images/user.png'}; }
+    if(img){
+      const raw=img.getAttribute('src')||'';
+      if(/^\/+(?=https?:\/\/)/i.test(raw)) img.setAttribute('src', raw.replace(/^\/+(?=https?:\/\/)/i,''));
+      img.onerror=()=>{ img.src='/images/user.png'; };
+    }
+
+    // ทำ Route Guard ก่อนลดโอกาสเห็นหน้าที่ไม่ควรเห็น
+    await routeGuard();
+
+    // auto redirect index -> home ถ้า login
+    autoRedirectIfLoggedIn();
   });
 })();
