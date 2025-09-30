@@ -182,6 +182,17 @@ h1,h2,h3 { margin: 0 0 8px 0; }
 
 /* ---------- Forms ---------- */
 label { display:block; margin: 10px 0 6px; }
+label.checkline,
+.checkline {
+  display: inline-flex;     /* เรียง input + text บรรทัดเดียว */
+  align-items: center;
+  gap: 8px;                 /* ระยะห่างระหว่างติ๊กกับข้อความ */
+  white-space: nowrap;      /* กันตัดขึ้นบรรทัดใหม่ถ้าช่องแคบ */
+  margin: 6px 12px 0 0;
+}
+
+/* กัน style label ทั่วไป (display:block) ไปทับ */
+label.checkline { display: inline-flex !important; }
 input, select, textarea {
   width: 100%; border-radius: 12px; padding: 10px 12px;
   border: 1px solid var(--border); outline: none;
@@ -192,6 +203,14 @@ input, select, textarea {
 input:focus, textarea:focus, select:focus {
   border-color: color-mix(in oklab, var(--primary) 60%, var(--border) 40%);
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 20%, transparent 80%);
+}
+input[type="checkbox"] {
+  width: auto;              /* ไม่ให้กิน 100% */
+  inline-size: auto;
+  height: auto;
+  margin: 0;                /* ให้จัดวางเนียนขึ้น */
+  vertical-align: middle;
+  accent-color: var(--primary); /* สีติ๊กในเบราว์เซอร์ที่รองรับ */
 }
 textarea { min-height: 120px; resize: vertical; }
 .mt-12 { margin-top: 12px; }
