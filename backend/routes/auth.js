@@ -1,3 +1,4 @@
+// /backend/routes/auth.js
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -29,7 +30,6 @@ passport.use(new GoogleStrategy({
         profilePicture: picture || 'images/user.png',
       });
     } else {
-      // Update picture if missing
       if (!user.profilePicture && picture) {
         user.profilePicture = picture;
         await user.save();
@@ -41,6 +41,7 @@ passport.use(new GoogleStrategy({
   }
 }));
 
+// ---------- Register ----------
 router.post('/register', async (req, res) => {
   try {
     const { email } = req.body;
@@ -60,7 +61,7 @@ router.post('/register', async (req, res) => {
     });
 
     const html = `<h2>ProjectMongo Verification</h2><p>Your code is <b>${code}</b>. It expires in 10 minutes.</p>`;
-    try { await sendEmail(email, 'Verify your email', html); } catch (e) { /* allow fallback without email */ }
+    try { await sendEmail(email, 'Verify your email', html); } catch (e) { /* ignore send error */ }
 
     res.json({ message: 'Verification code sent' });
   } catch (err) {
@@ -68,6 +69,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// ---------- Verify email (pre-auth token) ----------
 router.post('/verify-email', async (req, res) => {
   try {
     const { email, verificationCode } = req.body;
@@ -93,6 +95,7 @@ router.post('/verify-email', async (req, res) => {
   }
 });
 
+// ---------- Middleware: require pre stage ----------
 function requirePre(req, res, next) {
   try {
     const token = req.headers.authorization?.split(' ')[1] || req.body.token || req.cookies?.token;
@@ -106,6 +109,7 @@ function requirePre(req, res, next) {
   }
 }
 
+// ---------- Complete registration (issue full token) ----------
 router.post('/complete-registration', requirePre, async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -116,20 +120,22 @@ router.post('/complete-registration', requirePre, async (req, res) => {
     if (password) user.password = password;
     await user.save();
 
-    const full = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('token', full, {
+    res.cookie('token', token, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
+      path: '/', // สำคัญ
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    res.json({ message: 'Registration completed', role: user.role, token: full });
+    res.json({ message: 'Registration completed', role: user.role, token });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
+// ---------- Google OAuth flow ----------
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get('/google/callback',
@@ -138,20 +144,24 @@ router.get('/google/callback',
     const user = req.user;
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     const isProd = process.env.NODE_ENV === 'production';
+
     res.cookie('token', token, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
+      path: '/', // สำคัญ
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    // redirect to frontend with hash token (for SPA-like carry)
+
     const front = process.env.FRONTEND_URL || '/home.html';
-    const redirectToForm = !user.username;
-    const target = redirectToForm ? '/form.html?source=google#token=' + token : '/home.html#token=' + token;
+    const target = !user.username
+      ? '/form.html?source=google#token=' + token
+      : '/home.html#token=' + token;
     res.redirect(front + target);
   }
 );
 
+// ---------- Login ----------
 router.post('/login', async (req, res) => {
   try {
     const { email, password, rememberMe } = req.body;
@@ -167,6 +177,7 @@ router.post('/login', async (req, res) => {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
+      path: '/', // สำคัญ
       maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
     });
     res.json({ message: 'Logged in', role: user.role, token });
@@ -175,6 +186,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// ---------- Forgot / Reset ----------
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
@@ -190,7 +202,6 @@ router.post('/forgot-password', async (req, res) => {
     const link = `${process.env.FRONTEND_URL}/reset.html?token=${encodeURIComponent(token)}`;
     const html = `<p>Reset your password: <a href="${link}">${link}</a></p>`;
     try { await sendEmail(user.email, 'Reset Password', html); } catch {}
-
     res.json({ message: 'If exists, email sent' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -221,9 +232,22 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// ---------- Logout (ลบคุกกี้ให้ตรง options) ----------
 router.post('/logout', (req, res) => {
-  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' });
-  res.json({ message: 'Logged out' });
+  const isProd = process.env.NODE_ENV === 'production';
+  const opts = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/', // ต้องตรงกับตอนตั้ง cookie
+  };
+
+  // ลบด้วย clearCookie
+  res.clearCookie('token', opts);
+  // กันเหนียว: ยิงคุกกี้ชื่อเดิมให้หมดอายุทันที
+  res.cookie('token', '', { ...opts, expires: new Date(0) });
+
+  return res.json({ message: 'Logged out' });
 });
 
 export default router;
