@@ -5,7 +5,24 @@
   const onFrontend = location.origin === FRONTEND_HOST;
   window.API_BASE = onFrontend ? BACKEND_HOST : '';
 
-  // ============ Token from URL (Google callback) ============
+  /* ------------ token utils ------------ */
+  function setToken(t) {
+    if (!t) return;
+    try { sessionStorage.setItem('authToken', t); } catch {}
+    try { localStorage.setItem('authToken', t); } catch {}
+  }
+  function getToken() {
+    let t = null;
+    try { t = sessionStorage.getItem('authToken'); } catch {}
+    if (!t) { try { t = localStorage.getItem('authToken'); } catch {} }
+    return t || null;
+  }
+  function clearToken() {
+    try { sessionStorage.removeItem('authToken'); } catch {}
+    try { localStorage.removeItem('authToken'); } catch {}
+  }
+
+  /* ============ Token from URL (Google/login redirect) ============ */
   (function captureTokenFromURL() {
     let token = null;
     const hash = location.hash || '';
@@ -16,25 +33,36 @@
       if (qs.get('token')) token = qs.get('token');
     }
     if (token) {
-      sessionStorage.setItem('authToken', token);
-      history.replaceState({}, document.title, location.pathname + location.search);
+      setToken(token);
+      // remove token from URL
+      const clean = location.pathname + location.search.replace(/([?&])token=[^&]+(&)?/,'$1').replace(/[?&]$/,'') ;
+      history.replaceState({}, document.title, clean);
     }
   })();
 
-  // ============ Auto redirect index -> home ถ้าล็อกอินแล้ว ============
+  /* ============ Auto redirect index -> home ถ้ามี token ============ */
   function autoRedirectIfLoggedIn() {
     const path = location.pathname;
     const isIndex = path === '/' || path.endsWith('/index.html');
     if (!isIndex) return;
+
+    const t = getToken();
+    if (t) {
+      // มี token อยู่แล้ว ไป home ได้เลย
+      location.replace('/home.html');
+      return;
+    }
+
+    // เผื่อกรณีมีคุกกี้ (ถ้าเปิดเว็บจากโดเมน backend เดียวกัน)
     (async () => {
       try {
-        const res = await fetch('/api/users/me');
+        const res = await fetch('/api/users/me'); // จะติด 401 ถ้า cookie cross-site ถูกบล็อก
         if (res.ok) location.replace('/home.html');
       } catch {}
     })();
   }
 
-  // ============ URL helper ============
+  /* ============ asset URL helper ============ */
   window.buildAssetURL = function (p) {
     if (!p) return '/images/user.png';
     if (/^(https?:)?\/\//i.test(p)) return p; // absolute
@@ -44,27 +72,23 @@
     return p;
   };
 
-  // ============ fetch wrapper (/api/* -> backend + cookie + Bearer) ============
+  /* ============ fetch wrapper: /api/* -> backend + cookie + Bearer ============ */
   const ORIG_FETCH = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
-  if (typeof input === 'string' && input.startsWith('/api/')) {
-    input = (window.API_BASE || '') + input;   // ชี้ไป backend domain
-  }
-  init.credentials = 'include';                // << สำคัญ
-  init.headers = init.headers || {};
-  const t = sessionStorage.getItem('authToken');
-  if (t && !('Authorization' in init.headers)) {
-    init.headers['Authorization'] = `Bearer ${t}`;  // แนบสำรอง
-  }
-  return ORIG_FETCH(input, init);
-};
+    if (typeof input === 'string' && input.startsWith('/api/')) input = (window.API_BASE||'') + input;
+    init.credentials = 'include'; // จะถูกบล็อกใน cross-site บางเคส แต่ไม่เป็นไร เราแนบ Bearer ด้วย
+    init.headers = init.headers || {};
+    const t = getToken();
+    if (t && !('Authorization' in init.headers)) init.headers['Authorization'] = `Bearer ${t}`;
+    return ORIG_FETCH(input, init);
+  };
 
   window.captureTokenFromResponse = function (data) {
-    if (data && data.token) sessionStorage.setItem('authToken', data.token);
+    if (data && data.token) setToken(data.token);
   };
   window.apiURL = (path) => (path && path.startsWith('/api/') ? ((window.API_BASE||'') + path) : path);
 
-  // ============ Theme ============
+  /* ============ Theme ============ */
   (function initTheme() {
     const saved = localStorage.getItem('theme');
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -81,7 +105,7 @@
     localStorage.setItem('theme', next === 'theme-dark' ? 'dark' : 'light');
   };
 
-  // ============ Navbar ============
+  /* ============ Navbar population ============ */
   window.populateNavbar = async function () {
     const nameEl = document.getElementById('nav-username');
     const imgEl  = document.getElementById('nav-avatar');
@@ -92,7 +116,7 @@
     }
     try {
       const res = await fetch('/api/users/me');
-      if (res.status === 401) { return; } // หน้า public ไม่ต้อง redirect
+      if (!res.ok) return; // อย่า redirect ที่หน้าสาธารณะ
       const data = await res.json();
       if (nameEl) nameEl.textContent = data.username || data.email || 'User';
       if (imgEl) {
@@ -106,13 +130,12 @@
     } catch {}
   };
 
-  // ============ Dropdown ============
+  /* ============ Dropdown ============ */
   window.initDropdown = (function () {
     return function initDropdown() {
       const dd = document.querySelector('.dropdown');
       if (!dd || dd.dataset.init==='1') return;
       dd.dataset.init='1';
-      const menu = dd.querySelector('.menu');
       dd.addEventListener('click', (e)=>{
         if (!e.target.closest('.menu')) dd.classList.toggle('open');
         e.stopPropagation();
@@ -122,23 +145,18 @@
     };
   })();
 
-  // ============ Logout ============
+  /* ============ Logout ============ */
   window.handleLogout = async function () {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    sessionStorage.removeItem('authToken');
+    clearToken();
     location.href = '/login.html';
   };
-
-  // ผูกปุ่ม Logout แบบรวมทุกหน้า (event delegation)
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#logout-btn');
-    if (btn) {
-      e.preventDefault();
-      if (typeof handleLogout === 'function') handleLogout();
-    }
+    if (btn) { e.preventDefault(); if (typeof handleLogout === 'function') handleLogout(); }
   });
 
-  // ============ DOM Ready ============
+  /* ============ DOM Ready ============ */
   document.addEventListener('DOMContentLoaded', () => {
     autoRedirectIfLoggedIn();
     const img = document.getElementById('nav-avatar');
