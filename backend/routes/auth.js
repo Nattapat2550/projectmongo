@@ -183,22 +183,22 @@ router.post('/login', async (req, res) => {
   }
 });
 
-/* POST /forgot-password */
+// POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
-    const lower = String(email||'').toLowerCase();
+    const lower = String(email || '').toLowerCase();
     const user = await User.findOne({ email: lower });
     if (!user) return res.json({ message: 'If exists, email sent' });
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString('hex'); // hex ไม่ต้องกลัว encode
     const hash = await bcrypt.hash(token, 10);
     user.resetPasswordToken = hash;
-    user.resetPasswordExpires = new Date(Date.now() + 60*60*1000);
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 ชม.
     await user.save();
 
     const link = `${process.env.FRONTEND_URL}/reset.html?token=${encodeURIComponent(token)}`;
-    const html = `<p>Reset your password: <a href="${link}">${link}</a></p>`;
+    const html = `<p>Reset your password:</p><p><a href="${link}">${link}</a></p>`;
     try { await sendEmail(user.email, 'Reset Password', html); } catch {}
     res.json({ message: 'If exists, email sent' });
   } catch {
@@ -206,25 +206,51 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-/* POST /reset-password */
+// POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, newPassword, confirmPassword } = req.body || {};
-    if (!token || !newPassword || newPassword !== confirmPassword) {
-      return res.status(400).json({ message: 'Invalid request' });
+    // ยอมรับ token จาก query หรือ body (กันกรณี front ไม่ส่งมา)
+    const tokenFromQuery = (req.query?.token || '').trim();
+    const tokenFromBody  = (req.body?.token || '').trim();
+    const token = tokenFromBody || tokenFromQuery;
+
+    const newPassword     = (req.body?.newPassword || '').trim();
+    const confirmPassword = (req.body?.confirmPassword || '').trim();
+
+    if (!token) {
+      return res.status(400).json({ message: 'Missing token' });
     }
-    const users = await User.find({ resetPasswordToken: { $ne: null } });
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'Missing password fields' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    // ค้นหา user ที่ token ยังไม่หมดอายุ แล้วเทียบ bcrypt
+    const candidates = await User.find({
+      resetPasswordToken: { $ne: null },
+      resetPasswordExpires: { $gt: new Date() }
+    });
+
     let target = null;
-    for (const u of users) {
-      if (u.resetPasswordExpires && u.resetPasswordExpires < new Date()) continue;
+    for (const u of candidates) {
       const ok = await bcrypt.compare(token, u.resetPasswordToken);
       if (ok) { target = u; break; }
     }
-    if (!target) return res.status(400).json({ message: 'Invalid or expired token' });
+
+    if (!target) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
     target.password = newPassword;
     target.resetPasswordToken = undefined;
     target.resetPasswordExpires = undefined;
     await target.save();
+
     res.json({ message: 'Password updated' });
   } catch {
     res.status(500).json({ message: 'Server error' });
