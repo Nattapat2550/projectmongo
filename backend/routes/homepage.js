@@ -1,30 +1,18 @@
 import express from 'express';
-import mongoose from 'mongoose';
+import Homepage from '../models/homepage.js';
 
 const router = express.Router();
 
-const HomepageContent = mongoose.models.HomepageContent || mongoose.model('HomepageContent', new mongoose.Schema({
-  body: { type: String, default: '' },
-}, { timestamps: true }));
+async function getDoc() {
+  const list = await Homepage.find().limit(1);
+  if (list.length) return list[0];
+  return Homepage.create({ body: '', carousel: [] });
+}
 
-const CarouselItem = mongoose.models.CarouselItem || mongoose.model('CarouselItem', new mongoose.Schema({
-  index: { type: Number, required: true },
-  title: String,
-  subtitle: String,
-  description: String,
-  imageUrl: String,
-  active: { type: Boolean, default: true },
-}, { timestamps: true }));
-
-// Public fetch
-router.get('/content', async (req, res) => {
-  let content = await HomepageContent.findOne();
-  if (!content) content = await HomepageContent.create({ body: '' });
-  res.json(content);
-});
-
-router.get('/carousel', async (req, res) => {
-  const items = await CarouselItem.find({ active: true }).sort({ index: 1, createdAt: 1 });
+/* GET /api/homepage/carousel (public for home) */
+router.get('/carousel', async (_req, res) => {
+  const doc = await getDoc();
+  const items = (doc.carousel || []).filter(i => i.active).sort((a,b)=>a.index-b.index);
   res.json(items);
 });
 

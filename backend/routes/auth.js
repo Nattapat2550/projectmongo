@@ -1,4 +1,3 @@
-// /backend/routes/auth.js
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -12,71 +11,50 @@ import { sendEmail } from '../utils/gmail.js';
 
 const router = express.Router();
 
-/* ================= Google OAuth Strategy ================= */
+/* Google OAuth Strategy */
 passport.use(new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.GOOGLE_CALLBACK_URI,
   },
-  async (accessToken, refreshToken, profile, done) => {
+  async (_at, _rt, profile, done) => {
     try {
-      const email = profile.emails && profile.emails[0]?.value?.toLowerCase();
+      const email = profile.emails?.[0]?.value?.toLowerCase();
       const googleId = profile.id;
-      const picture = profile.photos && profile.photos[0]?.value;
+      const picture = profile.photos?.[0]?.value;
 
       let user = await User.findOne({ $or: [{ googleId }, { email }] });
       if (!user) {
         user = await User.create({
           email,
           googleId,
-          profilePicture: picture || '/images/user.png',
+          profilePicture: picture || '/images/user.png'
         });
-      } else {
-        // อัปเดตรูปครั้งแรกถ้ายังไม่มี
-        if (!user.profilePicture && picture) {
-          user.profilePicture = picture;
-          await user.save();
-        }
+      } else if (!user.profilePicture && picture) {
+        user.profilePicture = picture;
+        await user.save();
       }
       return done(null, user);
-    } catch (err) {
-      return done(err);
+    } catch (e) {
+      return done(e);
     }
   }
 ));
 
-/* ================= Helpers ================= */
-function issueCookieAndJson(res, token, role, maxDays = 7) {
+function setCookieAndReturn(res, token, role, days) {
   const isProd = process.env.NODE_ENV === 'production';
   res.cookie('token', token, {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
     path: '/',
-    maxAge: maxDays * 24 * 60 * 60 * 1000,
+    maxAge: days * 24 * 60 * 60 * 1000
   });
-  // ส่ง token กลับด้วยเพื่อเก็บใน localStorage (กัน third-party cookies)
   res.json({ message: 'OK', role, token });
 }
 
-function requirePre(req, res, next) {
-  try {
-    const bearer = req.headers.authorization || '';
-    const headerToken = bearer.startsWith('Bearer ') ? bearer.slice(7) : null;
-    const cookieToken = req.cookies?.token;
-    const token = headerToken || cookieToken;
-    if (!token) return res.status(401).json({ message: 'Unauthorized' });
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (payload.stage !== 'pre') return res.status(401).json({ message: 'Unauthorized' });
-    req.preUserId = payload.id;
-    next();
-  } catch (e) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-}
-
-/* ================= Register (step 1) ================= */
+/* POST /register */
 router.post('/register', async (req, res) => {
   try {
     const { email } = req.body || {};
@@ -86,33 +64,32 @@ router.post('/register', async (req, res) => {
     const exists = await User.findOne({ email: lower });
     if (exists) return res.status(409).json({ message: 'Email already registered' });
 
-    const code = generateCode(); // 6 digits
+    const code = generateCode();
     const hash = await bcrypt.hash(code, 10);
     const expires = new Date(Date.now() + 10 * 60 * 1000);
 
     await User.create({
       email: lower,
       verificationCode: hash,
-      verificationCodeExpires: expires,
+      verificationCodeExpires: expires
     });
 
-    const html = `<h2>Verify your email</h2>
-      <p>Your verification code is <b style="font-size:18px;">${code}</b></p>
-      <p>This code will expire in 10 minutes.</p>`;
-
-    try { await sendEmail(lower, 'ProjectMongo · Email Verification', html); } catch {}
+    const html = `<h2>ProjectMongo Verification</h2>
+      <p>Your code: <b style="font-size:18px">${code}</b></p>
+      <p>Expires in 10 minutes.</p>`;
+    try { await sendEmail(lower, 'Verify your email', html); } catch {}
 
     res.json({ message: 'Verification code sent' });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ================= Verify email (step 2 → pre token) ================= */
+/* POST /verify-email */
 router.post('/verify-email', async (req, res) => {
   try {
     const { email, verificationCode } = req.body || {};
-    const lower = String(email || '').toLowerCase();
+    const lower = String(email||'').toLowerCase();
     const user = await User.findOne({ email: lower });
     if (!user || !user.verificationCode || !user.verificationCodeExpires) {
       return res.status(400).json({ message: 'Invalid request' });
@@ -120,7 +97,7 @@ router.post('/verify-email', async (req, res) => {
     if (user.verificationCodeExpires < new Date()) {
       return res.status(400).json({ message: 'Code expired' });
     }
-    const ok = await bcrypt.compare(String(verificationCode || ''), user.verificationCode);
+    const ok = await bcrypt.compare(String(verificationCode||''), user.verificationCode);
     if (!ok) return res.status(400).json({ message: 'Invalid code' });
 
     user.verificationCode = undefined;
@@ -129,16 +106,31 @@ router.post('/verify-email', async (req, res) => {
 
     const preToken = jwt.sign({ id: user._id, stage: 'pre' }, process.env.JWT_SECRET, { expiresIn: '30m' });
     res.json({ message: 'Email verified', token: preToken });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ================= Complete registration (step 3) ================= */
+/* POST /complete-registration */
+function requirePre(req, res, next) {
+  try {
+    const auth = req.headers.authorization || '';
+    const headerToken = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    const cookieToken = req.cookies?.token;
+    const token = headerToken || cookieToken;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.stage !== 'pre') return res.status(401).json({ message: 'Unauthorized' });
+    req.preId = payload.id;
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+}
 router.post('/complete-registration', requirePre, async (req, res) => {
   try {
     const { username, password } = req.body || {};
-    const user = await User.findById(req.preUserId);
+    const user = await User.findById(req.preId);
     if (!user) return res.status(401).json({ message: 'Unauthorized' });
 
     if (username) user.username = username;
@@ -146,85 +138,75 @@ router.post('/complete-registration', requirePre, async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    issueCookieAndJson(res, token, user.role, 7);
-  } catch (err) {
+    setCookieAndReturn(res, token, user.role, 7);
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ================= Google OAuth ================= */
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+/* GET /google */
+router.get('/google', passport.authenticate('google', { scope: ['profile','email'] }));
 
-router.get(
-  '/google/callback',
+/* GET /google/callback */
+router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/login.html' }),
   async (req, res) => {
     const user = req.user;
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // ตั้งคุกกี้
     const isProd = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/', maxAge: 7*24*60*60*1000
     });
-
-    // redirect กลับ frontend พร้อม token ใน hash
     const front = process.env.FRONTEND_URL || '';
     const target = !user.username
       ? '/form.html?source=google#token=' + token
       : '/home.html#token=' + token;
-
     res.redirect(front + target);
   }
 );
 
-/* ================= Login ================= */
+/* POST /login */
 router.post('/login', async (req, res) => {
   try {
     const { email, password, rememberMe } = req.body || {};
-    const lower = String(email || '').toLowerCase();
+    const lower = String(email||'').toLowerCase();
     const user = await User.findOne({ email: lower });
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    const expiresIn = rememberMe ? '30d' : '7d';
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn });
-
+    const exp = rememberMe ? '30d' : '7d';
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: exp });
     const days = rememberMe ? 30 : 7;
-    issueCookieAndJson(res, token, user.role, days);
-  } catch (err) {
+    setCookieAndReturn(res, token, user.role, days);
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ================= Forgot / Reset password ================= */
+/* POST /forgot-password */
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
-    const lower = String(email || '').toLowerCase();
+    const lower = String(email||'').toLowerCase();
     const user = await User.findOne({ email: lower });
     if (!user) return res.json({ message: 'If exists, email sent' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const hash = await bcrypt.hash(token, 10);
     user.resetPasswordToken = hash;
-    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+    user.resetPasswordExpires = new Date(Date.now() + 60*60*1000);
     await user.save();
 
     const link = `${process.env.FRONTEND_URL}/reset.html?token=${encodeURIComponent(token)}`;
-    const html = `<p>Reset your password:</p><p><a href="${link}">${link}</a></p>`;
+    const html = `<p>Reset your password: <a href="${link}">${link}</a></p>`;
     try { await sendEmail(user.email, 'Reset Password', html); } catch {}
     res.json({ message: 'If exists, email sent' });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
+/* POST /reset-password */
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword, confirmPassword } = req.body || {};
@@ -239,18 +221,17 @@ router.post('/reset-password', async (req, res) => {
       if (ok) { target = u; break; }
     }
     if (!target) return res.status(400).json({ message: 'Invalid or expired token' });
-
     target.password = newPassword;
     target.resetPasswordToken = undefined;
     target.resetPasswordExpires = undefined;
     await target.save();
     res.json({ message: 'Password updated' });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ================= Logout ================= */
+/* POST /logout */
 router.post('/logout', (req, res) => {
   const isProd = process.env.NODE_ENV === 'production';
   const opts = { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' };

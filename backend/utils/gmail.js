@@ -12,20 +12,25 @@ const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 export async function sendEmail(to, subject, html) {
   const mail = new MailComposer({
     to,
-    subject,
     html,
-    text: html?.replace(/<[^>]+>/g, ' '),
-    from: process.env.SENDER_EMAIL
+    subject,
+    textEncoding: 'base64',
+    from: process.env.SENDER_EMAIL,
   });
 
   const message = await new Promise((resolve, reject) => {
-    mail.compile().build((err, msg) => err ? reject(err) : resolve(msg));
+    mail.compile().build((err, msg) => (err ? reject(err) : resolve(msg)));
   });
 
-  const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const encodedMessage = Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
   const res = await gmail.users.messages.send({
     userId: 'me',
-    requestBody: { raw: encodedMessage }
+    requestBody: { raw: encodedMessage },
   });
   return res.data;
 }
