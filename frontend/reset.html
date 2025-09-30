@@ -1,18 +1,45 @@
 <!doctype html>
 <html lang="th" class="theme-dark">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reset Password · ProjectMongo</title><link rel="stylesheet" href="/css/style.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reset Password · ProjectMongo</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .token-fallback { display:none; }
+    .token-fallback.show { display:block; }
+  </style>
+</head>
 <body>
   <nav class="navbar"><div class="brand">ProjectMongo</div></nav>
   <main class="content">
     <section class="card narrow">
       <h1 class="glow-title">ตั้งรหัสผ่านใหม่</h1>
+
+      <!-- ช่องกรอก token กรณี URL ไม่มี ?token= -->
+      <div id="token-fallback" class="token-fallback">
+        <label for="tokenInput">โทเค็นรีเซ็ต (กรณีเปิดหน้านี้เองไม่ผ่านอีเมล)</label>
+        <input id="tokenInput" type="text" placeholder="วาง token จากอีเมลที่ได้รับ">
+      </div>
+
       <form id="reset-form">
-        <label for="newPassword">รหัสผ่านใหม่</label><input id="newPassword" name="newPassword" type="password" placeholder="New password" required>
-        <label for="confirmPassword">ยืนยันรหัสผ่าน</label><input id="confirmPassword" name="confirmPassword" type="password" placeholder="Confirm new password" required>
-        <div class="mt-16"><button type="submit" class="btn primary">Reset</button></div>
+        <label for="newPassword">รหัสผ่านใหม่</label>
+        <input id="newPassword" name="newPassword" type="password" placeholder="อย่างน้อย 8 ตัวอักษร" required>
+
+        <label for="confirmPassword">ยืนยันรหัสผ่าน</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" placeholder="พิมพ์ซ้ำรหัสผ่าน" required>
+
+        <div class="mt-16">
+          <button type="submit" class="btn primary">Reset</button>
+        </div>
+
         <div id="msg" class="mt-12 muted"></div>
+        <div id="token-hint" class="mt-12 muted"></div>
       </form>
     </section>
   </main>
-  <script src="/js/main.js"></script><script src="/js/reset.js"></script>
-</body></html>
+
+  <script src="/js/main.js"></script>
+  <script src="/js/reset.js"></script>
+</body>
+</html>
