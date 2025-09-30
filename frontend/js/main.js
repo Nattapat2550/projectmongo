@@ -47,13 +47,17 @@
   // ============ fetch wrapper (/api/* -> backend + cookie + Bearer) ============
   const ORIG_FETCH = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
-    if (typeof input === 'string' && input.startsWith('/api/')) input = (window.API_BASE||'') + input;
-    init.credentials = 'include';
-    init.headers = init.headers || {};
-    const t = sessionStorage.getItem('authToken');
-    if (t && !('Authorization' in init.headers)) init.headers['Authorization'] = `Bearer ${t}`;
-    return ORIG_FETCH(input, init);
-  };
+  if (typeof input === 'string' && input.startsWith('/api/')) {
+    input = (window.API_BASE || '') + input;   // ชี้ไป backend domain
+  }
+  init.credentials = 'include';                // << สำคัญ
+  init.headers = init.headers || {};
+  const t = sessionStorage.getItem('authToken');
+  if (t && !('Authorization' in init.headers)) {
+    init.headers['Authorization'] = `Bearer ${t}`;  // แนบสำรอง
+  }
+  return ORIG_FETCH(input, init);
+};
 
   window.captureTokenFromResponse = function (data) {
     if (data && data.token) sessionStorage.setItem('authToken', data.token);

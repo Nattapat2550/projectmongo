@@ -235,19 +235,10 @@ router.post('/reset-password', async (req, res) => {
 // ---------- Logout (ลบคุกกี้ให้ตรง options) ----------
 router.post('/logout', (req, res) => {
   const isProd = process.env.NODE_ENV === 'production';
-  const opts = {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    path: '/', // ต้องตรงกับตอนตั้ง cookie
-  };
-
-  // ลบด้วย clearCookie
+  const opts = { httpOnly: true, secure: isProd, sameSite: isProd ? 'none':'lax', path:'/' };
   res.clearCookie('token', opts);
-  // กันเหนียว: ยิงคุกกี้ชื่อเดิมให้หมดอายุทันที
-  res.cookie('token', '', { ...opts, expires: new Date(0) });
-
-  return res.json({ message: 'Logged out' });
+  res.cookie('token', '', { ...opts, expires: new Date(0) }); // กันเหนียว
+  res.json({ message: 'Logged out' });
 });
 
 export default router;
