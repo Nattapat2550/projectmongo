@@ -1,53 +1,60 @@
+// /backend/routes/users.js
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
-import User from '../models/user.js';
 import { isAuthenticated } from '../middleware/auth.js';
+import User from '../models/user.js';
 
 const router = express.Router();
 
-// Multer storage for avatar uploads
-const uploadDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// --------- /me ----------
+router.get('/me', isAuthenticated, async (req, res) => {
+  const u = req.user;
+  return res.json({
+    _id: u._id,
+    email: u.email,
+    username: u.username || '',
+    profilePicture: u.profilePicture || '/images/user.png',
+    role: u.role || 'user',
+  });
+});
+
+// --------- settings ----------
+router.put('/settings', isAuthenticated, async (req, res) => {
+  const { username } = req.body;
+  const user = await User.findById(req.user._id);
+  if (username) user.username = username;
+  await user.save();
+  res.json({ message: 'Updated', username: user.username });
+});
+
+// --------- upload-picture ----------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png';
-    const base = (req.user?._id?.toString() || 'file') + '-' + Date.now();
-    cb(null, base + ext);
+  destination: path.join(__dirname, '..', 'uploads'),
+  filename: (_req, file, cb) => {
+    const id = String(Date.now());
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.png';
+    cb(null, `${id}${ext}`);
   }
 });
 const upload = multer({ storage });
 
-router.use(isAuthenticated);
-
-router.get('/me', async (req, res) => {
-  const { username, email, profilePicture, role, _id } = req.user;
-  res.json({ id: _id, username, email, profilePicture, role });
-});
-
-router.put('/settings', async (req, res) => {
-  const { username } = req.body;
-  if (username) req.user.username = username;
-  await req.user.save();
-  res.json({ message: 'Updated', username: req.user.username });
-});
-
-router.post('/settings/upload-picture', upload.single('avatar'), async (req, res) => {
+router.post('/settings/upload-picture', isAuthenticated, upload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file' });
-  // Save public path
-  const webPath = '/uploads/' + path.basename(req.file.path);
-  req.user.profilePicture = webPath;
-  await req.user.save();
-  res.json({ message: 'Uploaded', profilePicture: webPath });
+  const rel = `/uploads/${req.file.filename}`;
+  const user = await User.findById(req.user._id);
+  user.profilePicture = rel;
+  await user.save();
+  res.json({ message: 'Uploaded', profilePicture: rel });
 });
 
-router.delete('/account', async (req, res) => {
+// --------- delete account ----------
+router.delete('/account', isAuthenticated, async (req, res) => {
   await User.deleteOne({ _id: req.user._id });
-  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' });
   res.json({ message: 'Account deleted' });
 });
 

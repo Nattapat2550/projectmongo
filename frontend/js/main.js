@@ -34,9 +34,9 @@
     }
     if (token) {
       setToken(token);
-      // remove token from URL
-      const clean = location.pathname + location.search.replace(/([?&])token=[^&]+(&)?/,'$1').replace(/[?&]$/,'') ;
-      history.replaceState({}, document.title, clean);
+      // clean URL
+      const cleanQS = location.search.replace(/([?&])token=[^&]+(&)?/, '$1').replace(/[?&]$/, '');
+      history.replaceState({}, document.title, location.pathname + cleanQS);
     }
   })();
 
@@ -48,15 +48,13 @@
 
     const t = getToken();
     if (t) {
-      // มี token อยู่แล้ว ไป home ได้เลย
       location.replace('/home.html');
       return;
     }
-
-    // เผื่อกรณีมีคุกกี้ (ถ้าเปิดเว็บจากโดเมน backend เดียวกัน)
+    // เผื่อกรณีใช้ first-party cookie (same-origin dev)
     (async () => {
       try {
-        const res = await fetch('/api/users/me'); // จะติด 401 ถ้า cookie cross-site ถูกบล็อก
+        const res = await fetch('/api/users/me');
         if (res.ok) location.replace('/home.html');
       } catch {}
     })();
@@ -69,23 +67,25 @@
     if (/^\/+(?=https?:\/\/)/i.test(p)) return p.replace(/^\/+(?=https?:\/\/)/i, '');
     if (p.startsWith('/images/uploads/')) p = p.replace('/images/uploads/', '/uploads/');
     if (p.startsWith('/api/') || p.startsWith('/uploads/')) return (window.API_BASE||'') + p;
-    return p;
+    return p; // bundled asset (/images/..., /css/... etc.)
   };
 
   /* ============ fetch wrapper: /api/* -> backend + cookie + Bearer ============ */
   const ORIG_FETCH = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     if (typeof input === 'string' && input.startsWith('/api/')) input = (window.API_BASE||'') + input;
-    init.credentials = 'include'; // จะถูกบล็อกใน cross-site บางเคส แต่ไม่เป็นไร เราแนบ Bearer ด้วย
+    init.credentials = 'include'; // ไม่พึ่ง cookie อย่างเดียว—มี Bearer ช่วย
     init.headers = init.headers || {};
     const t = getToken();
     if (t && !('Authorization' in init.headers)) init.headers['Authorization'] = `Bearer ${t}`;
     return ORIG_FETCH(input, init);
   };
 
+  // ให้หน้า login/form เรียกเก็บ token หลัง API สำเร็จ
   window.captureTokenFromResponse = function (data) {
     if (data && data.token) setToken(data.token);
   };
+
   window.apiURL = (path) => (path && path.startsWith('/api/') ? ((window.API_BASE||'') + path) : path);
 
   /* ============ Theme ============ */
@@ -96,7 +96,6 @@
     document.documentElement.classList.remove('theme-light', 'theme-dark');
     document.documentElement.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
   })();
-
   window.toggleTheme = function () {
     const isDark = document.documentElement.classList.contains('theme-dark');
     const next = isDark ? 'theme-light' : 'theme-dark';
@@ -116,7 +115,7 @@
     }
     try {
       const res = await fetch('/api/users/me');
-      if (!res.ok) return; // อย่า redirect ที่หน้าสาธารณะ
+      if (!res.ok) return; // หน้า public ไม่ต้อง redirect
       const data = await res.json();
       if (nameEl) nameEl.textContent = data.username || data.email || 'User';
       if (imgEl) {
@@ -151,6 +150,7 @@
     clearToken();
     location.href = '/login.html';
   };
+  // ผูกให้ปุ่มที่มี id="logout-btn" ทำงานทุกหน้า
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#logout-btn');
     if (btn) { e.preventDefault(); if (typeof handleLogout === 'function') handleLogout(); }
