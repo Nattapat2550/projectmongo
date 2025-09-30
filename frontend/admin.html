@@ -1,1 +1,124 @@
-<!doctype html><html lang="th" class="theme-dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin · ProjectMongo</title><link rel="stylesheet" href="/css/style.css"></head><body><nav class="navbar"><div class="brand">ProjectMongo</div><div class="center"><a href="/home.html">Home</a><a href="/about.html">About</a><a href="/contact.html">Contact</a></div><div class="right dropdown"><img id="nav-avatar" class="avatar" src="/images/user.png" alt="avatar"/><span id="nav-username" class="muted">Loading…</span><div class="menu"><a href="/settings.html">Settings</a><button id="logout-btn" type="button">Logout</button></div></div></nav><main class="content"><section class="card"><h1 class="glow-title">แผงควบคุมผู้ดูแลระบบ</h1><div class="card"><h2>แก้ไขเนื้อหาโฮมเพจ</h2><textarea id="home-body" placeholder="ข้อความบนหน้าโฮมเพจ"></textarea><div class="mt-12"><button class="btn primary" onclick="saveHomepage()">Save</button><span id="h-msg" class="muted"></span></div></div><div class="card"><h2>Carousel Manager</h2><form id="carousel-create" onsubmit="event.preventDefault(); createCarouselItem();"><div class="form-row"><div><label>Index</label><input id="c-index" type="number" min="0" value="0"></div><div><label>Title</label><input id="c-title" type="text" placeholder="หัวข้อ"></div></div><div class="form-row"><div><label>Subtitle</label><input id="c-subtitle" type="text" placeholder="หัวข้อย่อย"></div><div><label>Active</label><label class="checkline"><input id="c-active" type="checkbox" checked> แสดง</label></div></div><label>Description</label><textarea id="c-desc" placeholder="คำอธิบายใต้รูป"></textarea><label>รูปภาพ</label><input id="c-image" type="file" accept="image/*"><div class="mt-12"><button class="btn primary" type="submit">Add Slide</button><span id="c-msg" class="muted"></span></div></form><div class="mt-16 table-wrap"><table id="carousel-table"><thead><tr><th style="width:80px">Index</th><th style="width:140px">Preview</th><th>Title</th><th>Subtitle</th><th style="width:100px">Active</th><th style="width:240px">Actions</th></tr></thead><tbody></tbody></table></div></div><div class="card"><h2>ผู้ใช้ทั้งหมด</h2><div class="table-wrap"><table id="users-table"><thead><tr><th>Username</th><th>Email</th><th style="width:140px">Role</th><th style="width:100px">Action</th></tr></thead><tbody></tbody></table></div></div></section></main><script src="/js/main.js"></script><script src="/js/admin.js"></script><script>document.addEventListener('DOMContentLoaded',()=>{try{populateNavbar()}catch{} try{initDropdown()}catch{} try{loadAdmin()}catch{}});</script></body></html>
+<!doctype html>
+<html lang="th" class="theme-dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin · ProjectMongo</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="brand">ProjectMongo</div>
+    <div class="center">
+      <a href="/home.html">Home</a>
+      <a href="/about.html">About</a>
+      <a href="/contact.html">Contact</a>
+    </div>
+    <div class="right dropdown">
+      <img id="nav-avatar" class="avatar" src="/images/user.png" alt="avatar"/>
+      <span id="nav-username" class="muted">Loading…</span>
+      <div class="menu">
+        <a href="/settings.html">Settings</a>
+        <button id="logout-btn" type="button">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="content">
+    <section class="card">
+      <h1 class="glow-title">แผงควบคุมผู้ดูแลระบบ</h1>
+
+      <div class="card">
+        <h2>แก้ไขเนื้อหาโฮมเพจ</h2>
+        <textarea id="home-body" placeholder="ข้อความบนหน้าโฮมเพจ"></textarea>
+        <div class="mt-12">
+          <button class="btn primary" onclick="saveHomepage()">Save</button>
+          <span id="h-msg" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Carousel Manager</h2>
+        <form id="carousel-create" onsubmit="event.preventDefault(); createCarouselItem();">
+          <div class="form-row">
+            <div>
+              <label>Index</label>
+              <input id="c-index" type="number" min="0" value="0">
+            </div>
+            <div>
+              <label>Title</label>
+              <input id="c-title" type="text" placeholder="หัวข้อ">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div>
+              <label>Subtitle</label>
+              <input id="c-subtitle" type="text" placeholder="หัวข้อย่อย">
+            </div>
+            <div>
+              <label>Active</label>
+              <label class="checkline"><input id="c-active" type="checkbox" checked> แสดง</label>
+            </div>
+          </div>
+
+          <label>Description</label>
+          <textarea id="c-desc" placeholder="คำอธิบายใต้รูป"></textarea>
+
+          <label>รูปภาพ</label>
+          <input id="c-image" type="file" accept="image/*">
+
+          <div class="mt-12">
+            <button class="btn primary" type="submit">Add Slide</button>
+            <span id="c-msg" class="muted"></span>
+          </div>
+        </form>
+
+        <div class="mt-16 table-wrap">
+          <table id="carousel-table">
+            <thead>
+              <tr>
+                <th style="width:80px">Index</th>
+                <th style="width:140px">Preview</th>
+                <th>Title</th>
+                <th>Subtitle</th>
+                <th style="width:100px">Active</th>
+                <th style="width:240px">Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>ผู้ใช้ทั้งหมด</h2>
+        <div class="table-wrap">
+          <table id="users-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th style="width:140px">Role</th>
+                <th style="width:100px">Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', ()=>{
+      try{ populateNavbar(); }catch{}
+      try{ initDropdown(); }catch{}
+      try{ loadAdmin(); }catch{}
+    });
+  </script>
+</body>
+</html>
