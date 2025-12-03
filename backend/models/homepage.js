@@ -1,9 +1,8 @@
-// backend/models/homepage.js
-import mongoose from 'mongoose';
+// backend/models/homepage.js (CommonJS)
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
-// ตัวหนึ่งใน carousel
 const carouselItemSchema = new Schema(
   {
     index: { type: Number, default: 0 },
@@ -14,23 +13,21 @@ const carouselItemSchema = new Schema(
     active: { type: Boolean, default: true },
   },
   {
-    _id: true, // ให้มี _id สำหรับใช้ homepage.carousel.id(...)
+    _id: true,
   }
 );
 
-// หน้า homepage หลัก
 const homepageSchema = new Schema(
   {
-    body: { type: String, default: '' },          // เนื้อหาใหญ่บนหน้า Home
-    carousel: { type: [carouselItemSchema], default: [] }, // สไลด์ทั้งหมด
+    body: { type: String, default: '' },
+    carousel: { type: [carouselItemSchema], default: [] },
   },
   {
     timestamps: true,
   }
 );
 
-// กัน error OverwriteModelError เวลา hot-reload / deploy ซ้ำ
 const Homepage =
   mongoose.models.Homepage || mongoose.model('Homepage', homepageSchema);
 
-export default Homepage;
+module.exports = Homepage;

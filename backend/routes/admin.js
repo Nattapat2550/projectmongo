@@ -1,8 +1,8 @@
-// backend/routes/admin.js
-import express from 'express';
-import User from '../models/user.js';
-import Homepage from '../models/homepage.js';
-import { isAuthenticated, isAdmin } from '../middleware/auth.js';
+// backend/routes/admin.js (CommonJS)
+const express = require('express');
+const User = require('../models/user.js');
+const Homepage = require('../models/homepage.js');
+const { isAuthenticated, isAdmin } = require('../middleware/auth.js');
 
 const router = express.Router();
 
@@ -21,17 +21,8 @@ async function ensureHomepageDoc() {
   return doc;
 }
 
-/**
- * =========================
- *  Users (admin only)
- *  Base path: /api/admin
- * =========================
- */
+// ===== Users (admin) =====
 
-/**
- * GET /api/admin/users
- * ดึง users ทั้งหมด (ตัด field ลับออก)
- */
 router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const users = await User.find({})
@@ -44,11 +35,6 @@ router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * PUT /api/admin/users/:id
- * อัปเดต role / username ของ user
- * body: { role?, username? }
- */
 router.put('/users/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { role, username } = req.body;
@@ -74,17 +60,8 @@ router.put('/users/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * ============================================
- *  Homepage Content (body text / main content)
- *  Base path: /api/admin
- * ============================================
- */
+// ===== Homepage Content =====
 
-/**
- * GET /api/admin/homepage-content
- * คืน body ของหน้า Home
- */
 router.get('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const homepage = await ensureHomepageDoc();
@@ -95,10 +72,6 @@ router.get('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * PUT /api/admin/homepage-content
- * body: { body }
- */
 router.put('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { body } = req.body;
@@ -114,21 +87,8 @@ router.put('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * =========================
- *  Carousel Management
- *  Base path: /api/admin
- * =========================
- *
- * Schema ฝั่ง Homepage (อ้างจาก README):
- *   - มี field carousel เป็น array ของ:
- *       { index, title, subtitle, description, imageUrl, active }
- */
+// ===== Carousel Management =====
 
-/**
- * GET /api/admin/carousel
- * คืนสไลด์ทั้งหมด (เรียงตาม index)
- */
 router.get('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const homepage = await ensureHomepageDoc();
@@ -145,10 +105,6 @@ router.get('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * POST /api/admin/carousel
- * body: { index?, title, subtitle, description, imageUrl, active? }
- */
 router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { index, title, subtitle, description, imageUrl, active } = req.body;
@@ -177,7 +133,6 @@ router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
     homepage.carousel.push(newSlide);
     await homepage.save();
 
-    // slide ล่าสุดที่ push
     const created = homepage.carousel[homepage.carousel.length - 1];
 
     res.status(201).json({ slide: created });
@@ -187,10 +142,6 @@ router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * PUT /api/admin/carousel/:id
- * body: { index?, title?, subtitle?, description?, imageUrl?, active? }
- */
 router.put('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -219,9 +170,6 @@ router.put('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/admin/carousel/:id
- */
 router.delete('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -243,5 +191,5 @@ router.delete('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// ✅ สำคัญ: export default ให้ server.js import ได้
-export default router;
+// ✅ CommonJS export
+module.exports = router;
