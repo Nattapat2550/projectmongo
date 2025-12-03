@@ -1,367 +1,263 @@
+// backend/routes/auth.js
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
-const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcryptjs');
-
-const {
-  createUserByEmail,
-  findUserByEmail,
-  setUsernameAndPassword,
-  storeVerificationCode,
-  validateAndConsumeCode,
-  setOAuthUser,
-  createPasswordResetToken,
-  consumePasswordResetToken,
-  setPassword,
-} = require('../models/user');
-
-const { sendEmail } = require('../utils/gmail');
-const generateCode = require('../utils/generateCode');
-const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
+const User = require('../models/user.js');
+const { authenticateJWT } = require('../middleware/auth.js');
 
 const router = express.Router();
 
-function signToken(user) {
+// ===== ENV =====
+const JWT_SECRET = process.env.JWT_SECRET;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CALLBACK_URI = process.env.GOOGLE_CALLBACK_URI;
+
+// ===== Helpers =====
+
+function createJwtForUser(user) {
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not set');
+  }
+
   return jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '30d' },
+    {
+      id: user._id.toString(),
+      role: user.role || 'user',
+      email: user.email,
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
   );
 }
 
-// ------ REGISTER ------
+function sendAuthCookie(res, user) {
+  const token = createJwtForUser(user);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: isProd,            // บน Render เป็น https เลยเปิด true ได้
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+  });
+
+  return token;
+}
+
+function sanitizeUser(user) {
+  if (!user) return null;
+  const obj = user.toObject ? user.toObject() : { ...user };
+  delete obj.password;
+  delete obj.verificationCode;
+  delete obj.verificationCodeExpires;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpires;
+  delete obj.__v;
+  return obj;
+}
+
+// ===== Local Register / Login =====
+
+// POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { email } = req.body || {};
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      return res.status(400).json({ error: 'Invalid email' });
+    const { email, password, username } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email และ password จำเป็นต้องมี' });
     }
 
-    const existing = await findUserByEmail(email);
-    if (existing && existing.is_email_verified) {
-      return res.status(409).json({ error: 'Email already registered' });
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ message: 'อีเมลนี้มีผู้ใช้งานแล้ว' });
     }
 
-    const user = existing || (await createUserByEmail(email));
-    const code = generateCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    await storeVerificationCode(user.id, code, expiresAt);
-
-    await sendEmail({
-      to: email,
-      subject: 'Your verification code',
-      text: `Your code is ${code}. It expires in 10 minutes.`,
-      html: `<p>Your code is <b>${code}</b>. It expires in 10 minutes.</p>`,
+    const user = new User({
+      email: email.toLowerCase(),
+      password,
+      username: username || email.split('@')[0],
+      role: 'user',
     });
 
-    res.status(201).json({ ok: true });
-  } catch (e) {
-    console.error('register error', e);
-    res.status(500).json({ error: 'Internal error' });
+    await user.save();
+
+    sendAuthCookie(res, user);
+    res.status(201).json({ user: sanitizeUser(user) });
+  } catch (err) {
+    console.error('POST /api/auth/register error:', err);
+    res.status(500).json({ message: 'Server error while registering user' });
   }
 });
 
-// ------ VERIFY CODE ------
-router.post('/verify-code', async (req, res) => {
-  try {
-    const { email, code } = req.body || {};
-    if (!email || !code) {
-      return res.status(400).json({ error: 'Missing email or code' });
-    }
-
-    const result = await validateAndConsumeCode(email, code);
-    if (!result.ok) {
-      if (result.reason === 'no_user') {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      return res.status(400).json({ error: 'Invalid or expired code' });
-    }
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('verify-code error', e);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// ------ COMPLETE PROFILE ------
-router.post('/complete-profile', async (req, res) => {
-  try {
-    const { email, username, password } = req.body || {};
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'Missing fields' });
-    }
-    if (username.length < 3) {
-      return res.status(400).json({ error: 'Username too short' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password too short' });
-    }
-
-    const updated = await setUsernameAndPassword(email, username, password);
-    if (!updated) {
-      return res.status(401).json({ error: 'Email not verified' });
-    }
-
-    const token = signToken(updated);
-    setAuthCookie(res, token, true);
-    res.json({ ok: true });
-  } catch (e) {
-    if (e.code === '23505') {
-      return res.status(409).json({ error: 'Username already taken' });
-    }
-    console.error('complete-profile error', e);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// ------ LOGIN (EMAIL / PASSWORD) ------
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, remember } = req.body || {};
-    const user = await findUserByEmail(email || '');
-    if (!user || !user.password_hash) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email และ password จำเป็นต้องมี' });
     }
 
-    const ok = await bcrypt.compare(password || '', user.password_hash);
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    const ok = await user.comparePassword(password);
     if (!ok) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
     }
 
-    const token = signToken(user);
-    setAuthCookie(res, token, !!remember);
-    res.json({ role: user.role });
-  } catch (e) {
-    console.error('login error', e);
-    res.status(500).json({ error: 'Internal error' });
+    sendAuthCookie(res, user);
+    res.json({ user: sanitizeUser(user) });
+  } catch (err) {
+    console.error('POST /api/auth/login error:', err);
+    res.status(500).json({ message: 'Server error while logging in' });
   }
 });
 
-router.post('/logout', async (_req, res) => {
-  clearAuthCookie(res);
-  res.json({ ok: true });
-});
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
 
-// ------ GOOGLE OAUTH (WEB FLOW) ------
-
-const GOOGLE_WEB_CLIENT_ID =
-  process.env.GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_CLIENT_ID_ANDROID;
-
-const oauth2ClientWeb = new google.auth.OAuth2(
-  GOOGLE_WEB_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_CALLBACK_URI,
-);
-
-// เริ่ม OAuth บนเว็บ
-router.get('/google', (req, res) => {
-  const url = oauth2ClientWeb.generateAuthUrl({
-    redirect_uri: process.env.GOOGLE_CALLBACK_URI,
-    access_type: 'offline',
-    prompt: 'consent',
-    scope: ['openid', 'email', 'profile'],
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
   });
-  res.redirect(url);
+
+  res.json({ message: 'Logged out' });
 });
 
-// callback จาก Google (เว็บ)
+// GET /api/auth/me
+router.get('/me', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user && (req.user.id || req.user.userId || req.user._id);
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    res.json({ user: sanitizeUser(user) });
+  } catch (err) {
+    console.error('GET /api/auth/me error:', err);
+    res.status(500).json({ message: 'Server error while fetching current user' });
+  }
+});
+
+// ===== Google OAuth Login =====
+
+const oauth2Client =
+  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_CALLBACK_URI
+    ? new google.auth.OAuth2(
+        GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET,
+        GOOGLE_CALLBACK_URI
+      )
+    : null;
+
+// GET /api/auth/google
+router.get('/google', (req, res) => {
+  try {
+    if (!oauth2Client) {
+      return res.status(500).send('Google OAuth is not configured');
+    }
+
+    const scopes = [
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/userinfo.email',
+    ];
+
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'select_account',
+      scope: scopes,
+    });
+
+    res.redirect(url);
+  } catch (err) {
+    console.error('GET /api/auth/google error:', err);
+    res.status(500).send('Unable to start Google login');
+  }
+});
+
+// GET /api/auth/google/callback
 router.get('/google/callback', async (req, res) => {
   try {
+    if (!oauth2Client) {
+      return res.status(500).send('Google OAuth is not configured');
+    }
+
     const { code } = req.query;
-
-    const { tokens } = await oauth2ClientWeb.getToken({
-      code,
-      redirect_uri: process.env.GOOGLE_CALLBACK_URI,
-    });
-    oauth2ClientWeb.setCredentials(tokens);
-
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2ClientWeb });
-    const { data: info } = await oauth2.userinfo.get();
-
-    const email = info.email;
-    const oauthId = info.id;
-    const picture = info.picture;
-    const name = info.name;
-
-    const user = await setOAuthUser({
-      email,
-      provider: 'google',
-      oauthId,
-      pictureUrl: picture,
-      name,
-    });
-
-    const token = signToken(user);
-    setAuthCookie(res, token, true);
-
-    if (!user.username) {
-      return res.redirect(
-        `${process.env.FRONTEND_URL}/form.html?email=${encodeURIComponent(
-          email,
-        )}`,
-      );
+    if (!code) {
+      return res.status(400).send('Missing code');
     }
 
-    if (user.role === 'admin') {
-      return res.redirect(`${process.env.FRONTEND_URL}/admin.html`);
-    }
-    return res.redirect(`${process.env.FRONTEND_URL}/home.html`);
-  } catch (e) {
-    console.error(
-      'google callback error',
-      e?.response?.data || e?.message || e,
-    );
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/login.html?error=oauth_failed`,
-    );
-  }
-});
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
 
-// ------ FORGOT / RESET PASSWORD ------
-
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ error: 'Missing email' });
-    }
-
-    const rawToken =
-      uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-
-    const user = await createPasswordResetToken(email, rawToken, expiresAt);
-
-    if (user) {
-      const link = `${process.env.FRONTEND_URL}/reset.html?token=${rawToken}`;
-      await sendEmail({
-        to: email,
-        subject: 'Password reset',
-        text: `Reset your password using this link (valid 30 minutes): ${link}`,
-        html: `<p>Reset your password (valid 30 minutes): <a href="${link}">${link}</a></p>`,
-      });
-    }
-
-    // ไม่บอกว่า email นี้มี user หรือไม่ (ป้องกัน enumeration)
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('forgot-password error', e);
-    res.json({ ok: true });
-  }
-});
-
-router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, newPassword } = req.body || {};
-    if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Missing fields' });
-    }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password too short' });
-    }
-
-    const user = await consumePasswordResetToken(token);
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
-    }
-
-    await setPassword(user.id, newPassword);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('reset-password error', e);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// ------ GOOGLE LOGIN (MOBILE / FLUTTER) ------
-
-router.post('/google-mobile', async (req, res) => {
-  try {
-    const { authCode } = req.body || {};
-    if (!authCode) {
-      return res.status(400).json({ error: 'Missing authCode' });
-    }
-
-    const webClientId =
-      process.env.GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID;
-    if (!webClientId || !process.env.GOOGLE_CLIENT_SECRET) {
-      console.error('Google web client or secret is not configured');
-      return res
-        .status(500)
-        .json({ error: 'Google auth is not configured on server' });
-    }
-
-    // ใช้ Web client ID + secret ในการแลก authCode เป็น token
-    const oauth2ClientMobile = new google.auth.OAuth2(
-      webClientId,
-      process.env.GOOGLE_CLIENT_SECRET,
-      // ไม่ต้องใช้ callback URI แบบเว็บ
-    );
-
-    // สำหรับ authCode ที่มาจาก mobile ใช้ redirect_uri = 'postmessage'
-    const { tokens } = await oauth2ClientMobile.getToken(authCode);
-
-
-    oauth2ClientMobile.setCredentials(tokens);
-
-    // ดึงข้อมูล profile ผู้ใช้จาก Google
     const oauth2 = google.oauth2({
+      auth: oauth2Client,
       version: 'v2',
-      auth: oauth2ClientMobile,
     });
 
-    const { data: info } = await oauth2.userinfo.get();
+    const { data: profile } = await oauth2.userinfo.get();
 
-    const email = info.email;
-    const oauthId = info.id;
-    const picture = info.picture;
-    const name = info.name;
+    const googleId = profile.id;
+    const email = profile.email && profile.email.toLowerCase();
+    const picture = profile.picture;
+    const name = profile.name || (email ? email.split('@')[0] : 'User');
 
-    if (!email) {
-      return res.status(400).json({ error: 'No email from Google' });
+    let user = null;
+
+    // 1) หา user ด้วย googleId ก่อน
+    if (googleId) {
+      user = await User.findOne({ googleId });
     }
 
-    // ใช้รูปแบบเดียวกับเว็บ
-    const user = await setOAuthUser({
-      email,
-      provider: 'google',
-      oauthId,
-      pictureUrl: picture,
-      name,
-    });
+    // 2) ถ้ายังไม่เจอ แต่มี email → หา user จาก email แล้วผูก googleId เพิ่ม
+    if (!user && email) {
+      user = await User.findOne({ email });
+      if (user) {
+        user.googleId = googleId;
+        if (picture && !user.profilePicture) {
+          user.profilePicture = picture;
+        }
+        if (!user.username) {
+          user.username = name;
+        }
+        await user.save();
+      }
+    }
 
-    const token = signToken(user);
-    setAuthCookie(res, token, true); // remember=true
+    // 3) ถ้ายังไม่มี → สร้างใหม่
+    if (!user) {
+      user = new User({
+        email,
+        googleId,
+        username: name,
+        profilePicture: picture || '',
+        role: 'user',
+      });
+      await user.save();
+    }
 
-    // mobile จะใช้ role ในการตัดสินจะไปหน้า admin หรือ home
-    res.json({ role: user.role });
-  } catch (e) {
-    console.error('google-mobile error', e?.response?.data || e?.message || e);
-    res.status(401).json({ error: 'Invalid Google auth' });
-  }
-});
+    sendAuthCookie(res, user);
 
-router.get('/status', (req, res) => {
-  const token = req.cookies?.token;
-  if (!token) {
-    // ยังไม่ล็อกอิน
-    return res.json({ authenticated: false });
-  }
-
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return res.json({
-      authenticated: true,
-      id: payload.id,
-      role: payload.role || 'user'
-    });
-  } catch (e) {
-    // token เสีย / หมดอายุ ให้ถือว่าไม่ล็อกอิน แต่ไม่ต้อง 401
-    return res.json({ authenticated: false });
+    // หลัง login ผ่าน google เสร็จ ให้ redirect กลับ frontend
+    const redirectUrl = `${FRONTEND_URL}/auth/callback?provider=google`;
+    res.redirect(redirectUrl);
+  } catch (err) {
+    console.error('GET /api/auth/google/callback error:', err);
+    res.status(500).send('Google login failed');
   }
 });
 

@@ -1,4 +1,4 @@
-// backend/server.js (CommonJS)
+// backend/server.js
 require('dotenv').config();
 
 const express = require('express');
@@ -7,13 +7,13 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 
-// db.js เป็น CommonJS อยู่แล้ว แค่ require ให้มัน connect
+// connect MongoDB
 require('./config/db.js');
 
+// ⭐ เพิ่มการ import routes พวกนี้
 const adminRoutes = require('./routes/admin.js');
-// ถ้ามี route อื่นก็ require เหมือนกัน เช่น:
-// const authRoutes = require('./routes/auth.js');
-// const homepageRoutes = require('./routes/homepage.js');
+const authRoutes = require('./routes/auth.js');       // << ต้องมี
+const homepageRoutes = require('./routes/homepage.js'); // ถ้ามีไฟล์นี้
 
 const app = express();
 
@@ -28,10 +28,15 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// routes
+// healthcheck
+app.get('/healthz', (req, res) => {
+  res.json({ ok: true });
+});
+
+// ⭐ ตรงนี้สำคัญ: ผูก prefix ให้ route
 app.use('/api/admin', adminRoutes);
-// app.use('/api/auth', authRoutes);
-// app.use('/api/homepage', homepageRoutes);
+app.use('/api/auth', authRoutes);          // << อันนี้แหละที่ทำให้ /api/auth/google ใช้ได้
+app.use('/api/homepage', homepageRoutes);  // ตามโปรเจกต์เดิม
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
