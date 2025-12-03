@@ -35,7 +35,8 @@ app.get('/healthz', (req, res) => {
 
 // ⭐ ตรงนี้สำคัญ: ผูก prefix ให้ route
 app.use('/api/admin', adminRoutes);
-app.use('/api/auth', authRoutes);          // << อันนี้แหละที่ทำให้ /api/auth/google ใช้ได้
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);          // << อันนี้แหละที่ทำให้ /api/auth/google ใช้ได้
 app.use('/api/homepage', homepageRoutes);  // ตามโปรเจกต์เดิม
 
 const PORT = process.env.PORT || 5000;
