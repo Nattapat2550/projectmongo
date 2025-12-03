@@ -13,7 +13,8 @@ const adminRoutes = require('./routes/admin.js');
 const authRoutes = require('./routes/auth.js');
 const userRoutes = require('./routes/users.js');
 const homepageRoutes = require('./routes/homepage.js');   // ถ้ามีใช้อยู่
-const carouselRoutes = require('./routes/carousel.js');   // ⭐ เพิ่มบรรทัดนี้
+const carouselRoutes = require('./routes/carousel.js');
+const downloadRoutes = require('./routes/download.js');
 
 const app = express();
 
@@ -37,7 +38,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/homepage', homepageRoutes);   // ถ้ามี
-app.use('/api/carousel', carouselRoutes);   // ⭐ ตรงนี้คือ /api/carousel
+app.use('/api/carousel', carouselRoutes);
+app.use('/api/download', downloadRoutes);   // ⭐ ตรงนี้คือ /api/carousel
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
