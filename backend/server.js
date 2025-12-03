@@ -7,12 +7,13 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 
-// connect MongoDB
+// ให้ไฟล์นี้ connect MongoDB
 require('./config/db.js');
 
-// ⭐ เพิ่มการ import routes พวกนี้
+// import routes
 const adminRoutes = require('./routes/admin.js');
-const authRoutes = require('./routes/auth.js');       // << ต้องมี
+const authRoutes = require('./routes/auth.js');
+const userRoutes = require('./routes/users.js');        // ⭐ เพิ่มบรรทัดนี้
 const homepageRoutes = require('./routes/homepage.js'); // ถ้ามีไฟล์นี้
 
 const app = express();
@@ -28,16 +29,16 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// healthcheck
-app.get('/healthz', (req, res) => {
+// health check
+app.get('/healthz', (_req, res) => {
   res.json({ ok: true });
 });
 
-// ⭐ ตรงนี้สำคัญ: ผูก prefix ให้ route
+// ใช้งาน routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);          // << อันนี้แหละที่ทำให้ /api/auth/google ใช้ได้
-app.use('/api/homepage', homepageRoutes);  // ตามโปรเจกต์เดิม
+app.use('/api/users', userRoutes);         // ⭐ ใช้ได้แล้ว
+app.use('/api/homepage', homepageRoutes);  // ถ้ามี route นี้
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
