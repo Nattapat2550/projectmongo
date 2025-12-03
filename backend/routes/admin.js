@@ -2,7 +2,7 @@
 const express = require('express');
 const User = require('../models/user.js');
 const Homepage = require('../models/homepage.js');
-const { isAuthenticated, isAdmin } = require('../middleware/auth.js');
+const { authenticateJWT, isAdmin } = require('../middleware/auth.js');
 
 const router = express.Router();
 
@@ -21,12 +21,22 @@ async function ensureHomepageDoc() {
   return doc;
 }
 
-// ===== Users (admin) =====
+/**
+ * =========================
+ *  Users (admin only)
+ *  Base path: /api/admin
+ * =========================
+ */
 
-router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * GET /api/admin/users
+ */
+router.get('/users', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const users = await User.find({})
-      .select('-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires -__v');
+      .select(
+        '-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires -__v'
+      );
 
     res.json({ users });
   } catch (err) {
@@ -35,7 +45,10 @@ router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.put('/users/:id', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * PUT /api/admin/users/:id
+ */
+router.put('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { role, username } = req.body;
     const update = {};
@@ -47,7 +60,9 @@ router.put('/users/:id', isAuthenticated, isAdmin, async (req, res) => {
       req.params.id,
       update,
       { new: true, runValidators: true }
-    ).select('-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires -__v');
+    ).select(
+      '-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires -__v'
+    );
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -60,9 +75,16 @@ router.put('/users/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// ===== Homepage Content =====
+/**
+ * ============================================
+ *  Homepage Content (body text / main content)
+ * ============================================
+ */
 
-router.get('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * GET /api/admin/homepage-content
+ */
+router.get('/homepage-content', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const homepage = await ensureHomepageDoc();
     res.json({ body: homepage.body ?? '' });
@@ -72,7 +94,10 @@ router.get('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.put('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * PUT /api/admin/homepage-content
+ */
+router.put('/homepage-content', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { body } = req.body;
 
@@ -87,9 +112,16 @@ router.put('/homepage-content', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// ===== Carousel Management =====
+/**
+ * =========================
+ *  Carousel Management
+ * =========================
+ */
 
-router.get('/carousel', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * GET /api/admin/carousel
+ */
+router.get('/carousel', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const homepage = await ensureHomepageDoc();
     const slides = [...(homepage.carousel || [])].sort((a, b) => {
@@ -105,7 +137,10 @@ router.get('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * POST /api/admin/carousel
+ */
+router.post('/carousel', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { index, title, subtitle, description, imageUrl, active } = req.body;
 
@@ -116,7 +151,7 @@ router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
       nextIndex = index;
     } else if (Array.isArray(homepage.carousel) && homepage.carousel.length > 0) {
       const maxIndex = Math.max(
-        ...homepage.carousel.map(s => (typeof s.index === 'number' ? s.index : 0))
+        ...homepage.carousel.map((s) => (typeof s.index === 'number' ? s.index : 0))
       );
       nextIndex = maxIndex + 1;
     }
@@ -142,7 +177,10 @@ router.post('/carousel', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.put('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * PUT /api/admin/carousel/:id
+ */
+router.put('/carousel/:id', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { index, title, subtitle, description, imageUrl, active } = req.body;
@@ -170,7 +208,10 @@ router.put('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-router.delete('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
+/**
+ * DELETE /api/admin/carousel/:id
+ */
+router.delete('/carousel/:id', authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -191,5 +232,4 @@ router.delete('/carousel/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// ✅ CommonJS export
 module.exports = router;
