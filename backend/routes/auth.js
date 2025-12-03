@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const User = require('../models/user');
 const generateCode = require('../utils/generateCode');
 const { sendEmail } = require('../utils/gmail');
-const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
+const { setAuthCookie, clearAuthCookie, authenticateJWT } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -74,7 +74,6 @@ router.post('/register', async (req, res) => {
     user.verificationCodeExpires = expiresAt;
     await user.save();
 
-    // ส่งอีเมล (ใช้ Gmail API util เดิม)
     await sendEmail({
       to: email,
       subject: 'Your verification code',
@@ -205,11 +204,36 @@ router.post('/logout', (_req, res) => {
 });
 
 // ---------------------
+// AUTH STATUS
+// GET /api/auth/status
+// ---------------------
+router.get('/status', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user && (req.user.id || req.user.userId || req.user._id);
+
+    if (!userId) {
+      return res.status(401).json({ authenticated: false });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(401).json({ authenticated: false });
+    }
+
+    res.json({
+      authenticated: true,
+      user: sanitizeUser(user),
+    });
+  } catch (e) {
+    console.error('auth status error', e);
+    res.status(500).json({ authenticated: false, error: 'Internal error' });
+  }
+});
+
+// ---------------------
 // FORGOT / RESET PASSWORD
 // ---------------------
 
-// POST /api/auth/forgot-password
-// body: { email }
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
@@ -238,7 +262,6 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    // ไม่บอกว่า email นี้มี user หรือไม่ (กัน enumeration)
     res.json({ ok: true });
   } catch (e) {
     console.error('forgot-password error', e);
@@ -246,8 +269,6 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password
-// body: { token, newPassword }
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body || {};
@@ -288,16 +309,12 @@ router.post('/reset-password', async (req, res) => {
 
 const GOOGLE_WEB_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_CLIENT_ID_ANDROID;
-
 const oauth2ClientWeb = new google.auth.OAuth2(
   GOOGLE_WEB_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_CALLBACK_URI
 );
 
-// เริ่ม OAuth บนเว็บ
-// GET /api/auth/google
 router.get('/google', (req, res) => {
   const url = oauth2ClientWeb.generateAuthUrl({
     redirect_uri: process.env.GOOGLE_CALLBACK_URI,
@@ -308,8 +325,6 @@ router.get('/google', (req, res) => {
   res.redirect(url);
 });
 
-// callback จาก Google (เว็บ)
-// GET /api/auth/google/callback
 router.get('/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
@@ -338,7 +353,6 @@ router.get('/google/callback', async (req, res) => {
       );
     }
 
-    // หา / สร้าง user สำหรับ Google
     let user = await User.findOne({ googleId: oauthId });
     if (!user) {
       user = await User.findOne({ email });
@@ -369,7 +383,6 @@ router.get('/google/callback', async (req, res) => {
     const token = signToken(user);
     setAuthCookie(res, token, true);
 
-    // 🔧 ตรงนี้สำคัญ: redirect ไปหน้า HTML เดิม (ไม่ใช่ /auth/callback)
     if (!user.username) {
       return res.redirect(
         `${process.env.FRONTEND_URL}/form.html?email=${encodeURIComponent(
