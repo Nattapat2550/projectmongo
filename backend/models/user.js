@@ -1,5 +1,5 @@
-// backend/models/user.js (CommonJS)
-const mongoose = require('mongoose');
+// backend/models/user.js
+const mongoose = require('../config/db');
 const bcrypt = require('bcryptjs');
 
 const { Schema } = mongoose;
@@ -18,7 +18,12 @@ const userSchema = new Schema(
       trim: true,
     },
     password: {
-      type: String, // ว่างได้ถ้าใช้ Google login
+      type: String, // hashed
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
     },
     googleId: {
       type: String,
@@ -26,10 +31,10 @@ const userSchema = new Schema(
     profilePicture: {
       type: String,
     },
-    role: {
-      type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
+    // register / verify
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
     },
     verificationCode: {
       type: String,
@@ -37,6 +42,7 @@ const userSchema = new Schema(
     verificationCodeExpires: {
       type: Date,
     },
+    // reset password
     resetPasswordToken: {
       type: String,
     },
@@ -54,7 +60,6 @@ userSchema.pre('save', async function (next) {
     if (!this.isModified('password') || !this.password) {
       return next();
     }
-
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
     next();
