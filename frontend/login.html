@@ -1,78 +1,41 @@
-<!doctype html>
-<html lang="th" class="theme-dark">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Login · ProjectMongo</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <style>
-    /* เลเยอร์ modal เรียบๆ ใช้ได้กับธีมเดิม */
-    .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.45);
-      display: none; align-items: center; justify-content: center; z-index: 1000;
-    }
-    .modal-backdrop.open { display: flex; }
-    .modal {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      box-shadow: var(--shadow);
-      width: min(520px, 92vw);
-      padding: 20px;
-    }
-    .modal h3 { margin-top: 0; }
-    .modal .actions { justify-content: flex-end; }
-  </style>
+  <meta charset="utf-8" />
+  <title>Login</title>
+  <meta name="description" content="Login page for MySite where users can sign in with email, password, or Google.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://backendlogins.onrender.com" crossorigin>
+  <link rel="dns-prefetch" href="https://backendlogins.onrender.com">
+  <link rel="preload" href="css/style.css" as="style">
+  <link href="css/style.css" rel="stylesheet" />
 </head>
 <body>
-  <nav class="navbar">
-    <div class="brand">ProjectMongo</div><div class="right"><a class="btn small" href="/register.html">Register</a></div>
+  <nav class="nav">
+    <div class="brand">MySite</div>
+    <div class="links"><a href="index.html">Home</a><button id="themeToggle">🌓</button></div>
   </nav>
-
-  <main class="content">
-    <section class="card narrow">
-      <h1 class="glow-title">เข้าสู่ระบบ</h1>
-
-      <form id="login-form">
-        <label for="email">อีเมล</label>
-        <input id="email" name="email" type="email" placeholder="you@example.com" required>
-
-        <label for="password">รหัสผ่าน</label>
-        <input id="password" name="password" type="password" placeholder="••••••••" required>
-
-        <label class="checkline"><input type="checkbox" id="show-pw"> แสดงรหัสผ่าน</label>
-        <label class="checkline"><input type="checkbox" id="remember"> Remember me</label>
-
-        <div class="mt-12">
-          <a href="#" id="forgot-link">ลืมรหัสผ่าน?</a>
-        </div>
-
-        <div class="mt-16">
-          <button type="submit" class="btn primary">Login</button>
-          <button type="button" class="btn google" id="btn-google">Login with Google</button>
-        </div>
-
-        <div id="msg" class="mt-12 muted"></div>
-      </form>
-    </section>
-  </main>
-
-  <!-- Modal: ขออีเมลเพื่อส่งลิงก์รีเซ็ต -->
-  <div class="modal-backdrop" id="forgot-modal">
-    <div class="modal">
-      <h3>ลืมรหัสผ่าน</h3>
-      <p class="muted">กรุณากรอกอีเมลที่ลงทะเบียนไว้ เราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ให้คุณ</p>
-      <label for="fp-email">อีเมล</label>
-      <input id="fp-email" type="email" placeholder="you@example.com" required>
-      <div id="fp-msg" class="mt-12 muted"></div>
-      <div class="actions mt-16">
-        <button class="btn" id="fp-cancel">ยกเลิก</button>
-        <button class="btn primary" id="fp-send">ส่งลิงก์รีเซ็ต</button>
+  <main class="container">
+    <h2>Login</h2>
+    <form id="loginForm">
+      <label>Email</label>
+      <input type="email" id="email" required />
+      <label>Password</label>
+      <input type="password" id="password" required />
+      <div class="row" style="justify-content:space-between">
+        <label><input type="checkbox" id="showPw" /> Show Password</label>
+        <label><input type="checkbox" id="remember" /> Remember me</label>
       </div>
-    </div>
-  </div>
-
-  <script src="/js/main.js"></script>
-  <script src="/js/login.js"></script>
+      <button class="btn" type="submit">Login</button>
+      <a class="muted" href="reset.html">Forgot Password?</a>
+    </form>
+    <div class="divider">or</div>
+    <button class="btn outline" id="googleBtn">Login with Google</button>
+    <p id="msg" class="muted"></p>
+  </main>
+  <script src="js/main.js" defer></script>
+  <script src="js/login.js" defer></script>
 </body>
 </html>

@@ -1,37 +1,57 @@
-<!doctype html>
-<html lang="th" class="theme-dark">
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Home · ProjectMongo</title><link rel="stylesheet" href="/css/style.css"/></head>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Home</title>
+  <meta name="description" content="User home dashboard page in MySite after logging in.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://backendlogins.onrender.com" crossorigin>
+  <link rel="dns-prefetch" href="https://backendlogins.onrender.com">
+  <link rel="preload" href="css/style.css" as="style">
+  <link href="css/style.css" rel="stylesheet" />
+</head>
 <body>
-  <nav class="navbar">
-    <div class="brand">ProjectMongo</div>
-    <div class="center"><a href="/about.html">About</a><a href="/contact.html">Contact</a><button class="btn small" onclick="toggleTheme()">Toggle Theme</button></div>
-    <div class="right dropdown">
-      <img id="nav-avatar" class="avatar" src="/images/user.png" alt="avatar"/><span id="nav-username" class="muted">Loading…</span>
-      <div class="menu"><a href="/settings.html">Settings</a><button id="logout-btn" type="button" onclick="handleLogout()">Logout</button></div>
+  <nav class="nav">
+    <div class="brand">MySite</div>
+    <div class="links">
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="download.html">Download</a>
+      <button id="themeToggle">🌓</button>
+      <div id="userMenu" class="user-menu">
+        <img id="avatar" src="images/user.png" alt="avatar" />
+        <span id="uname">...</span>
+        <div class="dropdown">
+          <a href="settings.html">Settings</a>
+          <button id="logoutBtn" class="linklike">Logout</button>
+        </div>
+      </div>
     </div>
   </nav>
-  <main class="content">
-    <section class="card hero">
-      <h1 class="glow-title">ยินดีต้อนรับ 🚀</h1><p class="muted">หน้า Home พร้อม Carousel</p>
-      <div class="actions"><a class="btn primary" href="/settings.html">Settings</a><button class="btn" onclick="toggleTheme()">Toggle Theme</button></div>
-    </section>
 
-    <section class="card holo">
-      <div id="carousel" class="carousel" aria-label="Featured images">
-        <div class="carousel-viewport">
-          <div class="carousel-title" id="carousel-title"></div>
-          <div class="carousel-track" id="carousel-track"></div>
-        </div>
-        <button class="carousel-control icon prev" id="carousel-prev" aria-label="รูปก่อนหน้า">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
-        <button class="carousel-control icon next" id="carousel-next" aria-label="รูปถัดไป">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
-        <ol class="carousel-indicators" id="carousel-dots"></ol>
-      </div>
-      <div class="carousel-desc card" id="carousel-desc"></div>
-    </section>
+  <main class="container">
+    <!-- Pure CSS/JS Carousel -->
+    <div class="carousel" id="carousel">
+      <div class="carousel-track" id="carousel-track"></div>
+      <button class="carousel-prev" id="carousel-prev" aria-label="รูปก่อนหน้า" title="< รูปก่อนหน้า">&lt;</button>
+      <button class="carousel-next" id="carousel-next" aria-label="รูปถัดไป" title="> รูปถัดไป">&gt;</button>
+      <div class="carousel-indicators" id="carousel-indicators"></div>
+    </div>
+
+    <div id="carousel-caption-box" class="card">
+      <h3 id="cc-title"></h3>
+      <h5 id="cc-subtitle" class="muted"></h5>
+      <p id="cc-desc"></p>
+    </div>
+
+    <hr/>
+    <h2 id="welcome_header"></h2>
+    <p id="main_paragraph"></p>
   </main>
-  <script src="/js/main.js"></script><script src="/js/home.js"></script>
-</body></html>
+
+  <script src="js/main.js" defer></script>
+  <script src="js/home.js" defer></script>
+</body>
+</html>

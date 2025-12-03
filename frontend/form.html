@@ -1,18 +1,36 @@
-<!doctype html>
-<html lang="th" class="theme-dark">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Complete Registration · ProjectMongo</title><link rel="stylesheet" href="/css/style.css"></head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Complete Profile</title>
+  <meta name="description" content="Example protected form page in MySite that demonstrates authenticated form submission.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://backendlogins.onrender.com" crossorigin>
+  <link rel="dns-prefetch" href="https://backendlogins.onrender.com">
+  <link rel="preload" href="css/style.css" as="style">
+  <link href="css/style.css" rel="stylesheet" />
+</head>
 <body>
-  <nav class="navbar"><div class="brand">ProjectMongo</div></nav>
-  <main class="content">
-    <section class="card narrow">
-      <h1 class="glow-title">กรอกข้อมูลให้สมบูรณ์</h1>
-      <form id="form-complete">
-        <label for="username">ชื่อผู้ใช้</label><input id="username" name="username" type="text" placeholder="yourname" required>
-        <div id="pw-wrap"><label for="password">รหัสผ่าน</label><input id="password" name="password" type="password" placeholder="••••••••"></div>
-        <div class="mt-16"><button type="submit" class="btn primary">Continue</button></div>
-        <div id="msg" class="mt-12 muted"></div>
-      </form>
-    </section>
+  <nav class="nav">
+    <div class="brand">MySite</div>
+    <div class="links"><a href="index.html">Home</a><button id="themeToggle">🌓</button></div>
+  </nav>
+  <main class="container">
+    <h2>Set username & password</h2>
+    <form id="profileForm">
+      <label>Email</label>
+      <input type="email" id="email" required />
+      <label>Username</label>
+      <input type="text" id="username" minlength="3" required />
+      <label>Password</label>
+      <input type="password" id="password" minlength="8" required />
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <p id="msg" class="muted"></p>
   </main>
-  <script src="/js/main.js"></script><script src="/js/form.js"></script>
-</body></html>
+  <script src="js/main.js" defer></script>
+  <script src="js/form.js" defer></script>
+</body>
+</html>

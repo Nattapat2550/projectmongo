@@ -1,58 +1,96 @@
-<!doctype html>
-<html lang="th" class="theme-dark">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin · ProjectMongo</title><link rel="stylesheet" href="/css/style.css"></head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin</title>
+  <meta name="description" content="Admin dashboard in MySite for managing users and settings.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://backendlogins.onrender.com" crossorigin>
+  <link rel="dns-prefetch" href="https://backendlogins.onrender.com">
+  <link rel="preload" href="css/style.css" as="style">
+  <link href="css/style.css" rel="stylesheet" />
+</head>
 <body>
-  <nav class="navbar">
-    <div class="brand">ProjectMongo</div>
-    <div class="center"><a href="/home.html">Home</a><a href="/about.html">About</a><a href="/contact.html">Contact</a></div>
-    <div class="right dropdown"><img id="nav-avatar" class="avatar" src="/images/user.png" alt="avatar"/><span id="nav-username" class="muted">Loading…</span>
-      <div class="menu"><a href="/settings.html">Settings</a><button id="logout-btn" type="button" onclick="handleLogout()">Logout</button></div>
+  <nav class="nav">
+    <div class="brand">MySite</div>
+    <div class="links">
+      <a href="home.html">Home</a>
+      <button id="themeToggle">🌓</button>
+      <div id="userMenu" class="user-menu">
+        <img id="avatar" src="images/user.png" alt="avatar" />
+        <span id="uname">admin</span>
+        <div class="dropdown">
+          <a href="settings.html">Settings</a>
+          <button id="logoutBtn" class="linklike">Logout</button>
+        </div>
+      </div>
     </div>
   </nav>
-  <main class="content">
-    <section class="card">
-      <h1 class="glow-title">แผงควบคุมผู้ดูแลระบบ</h1>
 
-      <div class="card">
-        <h2>แก้ไขเนื้อหาโฮมเพจ</h2>
-        <textarea id="home-body" placeholder="ข้อความบนหน้าโฮมเพจ"></textarea>
-        <div class="mt-12"><button class="btn primary" onclick="saveHomepage()">Save</button><span id="h-msg" class="muted"></span></div>
-      </div>
+  <main class="container">
+    <h2>Admin Dashboard</h2>
 
-      <div class="card">
-        <h2>Carousel Manager</h2>
-        <form id="carousel-create" onsubmit="event.preventDefault(); createCarouselItem();">
-          <div class="form-row">
-            <div><label>Index</label><input id="c-index" type="number" min="0" value="0"></div>
-            <div><label>Title</label><input id="c-title" type="text" placeholder="หัวข้อ"></div>
-          </div>
-          <div class="form-row">
-            <div><label>Subtitle</label><input id="c-subtitle" type="text" placeholder="หัวข้อย่อย"></div>
-            <div><label>Active</label><label class="checkline"><input id="c-active" type="checkbox" checked> แสดง</label></div>
-          </div>
-          <label>Description</label><textarea id="c-desc" placeholder="คำอธิบายใต้รูป"></textarea>
-          <label>รูปภาพ</label><input id="c-image" type="file" accept="image/*">
-          <div class="mt-12"><button class="btn primary" type="submit">Add Slide</button><span id="c-msg" class="muted"></span></div>
-        </form>
-        <div class="mt-16 table-wrap">
-          <table id="carousel-table">
-            <thead><tr><th style="width:80px">Index</th><th style="width:140px">Preview</th><th>Title</th><th>Subtitle</th><th style="width:100px">Active</th><th style="width:240px">Actions</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>ผู้ใช้ทั้งหมด</h2>
-        <div class="table-wrap">
-          <table id="users-table">
-            <thead><tr><th>Username</th><th>Email</th><th style="width:140px">Role</th><th style="width:100px">Action</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
+    <section>
+      <h3>Homepage Content</h3>
+      <form id="homeForm">
+        <label>Section name</label>
+        <input type="text" id="section" placeholder="welcome_header" required />
+        <label>Content</label>
+        <textarea id="content" rows="3"></textarea>
+        <button class="btn" type="submit">Save section</button>
+      </form>
     </section>
+
+    <section>
+      <h3>Users</h3>
+      <table id="usersTable">
+        <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h3>Carousel Manager</h3>
+      <form id="carouselForm" enctype="multipart/form-data">
+        <div class="row">
+          <div style="flex:1;">
+            <label>Image (png/jpg/gif/webp)</label>
+            <input type="file" id="cImage" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required />
+          </div>
+          <div style="width:160px;">
+            <label>Index</label>
+            <input type="number" id="cIndex" value="0" />
+          </div>
+        </div>
+        <label>Title</label>
+        <input type="text" id="cTitle" />
+        <label>Subtitle</label>
+        <input type="text" id="cSubtitle" />
+        <label>Description</label>
+        <textarea id="cDesc" rows="2"></textarea>
+        <button class="btn" type="submit">Add slide</button>
+      </form>
+
+      <div style="height:1rem"></div>
+
+      <table id="carouselTable">
+        <thead>
+          <tr>
+            <th>ID</th><th>Index</th><th>Preview</th>
+            <th>Title</th><th>Subtitle</th><th>Description</th>
+            <th>New Image</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p id="msg" class="muted"></p>
   </main>
-  <script src="/js/main.js"></script><script src="/js/admin.js"></script>
-  <script>document.addEventListener('DOMContentLoaded', ()=>{ loadAdmin(); });</script>
-</body></html>
+
+  <script src="js/main.js" defer></script>
+  <script src="js/admin.js" defer></script>
+</body>
+</html>

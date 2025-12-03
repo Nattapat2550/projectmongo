@@ -1,40 +1,42 @@
-document.addEventListener('DOMContentLoaded', ()=>{
-  try{ populateNavbar(); }catch{}
-  try{ initDropdown(); }catch{}
+const msg = document.getElementById('msg');
 
-  const nameInput = document.getElementById('set-username');
-  const upBtn = document.getElementById('btn-upload');
-  const svBtn = document.getElementById('btn-save-username');
-  const delBtn= document.getElementById('btn-delete');
-  const msg   = document.getElementById('up-msg');
+async function loadMe() {
+  try {
+    const me = await api('/api/users/me');
+    document.getElementById('username').value = me.username || '';
+  } catch { location.replace('index.html'); }
+}
+loadMe();
 
-  // preload current name
-  (async()=>{
-    try{ const r=await fetch('/api/users/me'); if(!r.ok) return; const u=await r.json(); if(nameInput) nameInput.value=u.username||''; }catch{}
-  })();
+document.getElementById('settingsForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  msg.textContent='';
+  const username = document.getElementById('username').value.trim();
+  try {
+    await api('/api/users/me', { method:'PUT', body:{ username }});
+    msg.textContent = 'Saved.';
+  } catch (err) { msg.textContent = err.message; }
+});
 
-  svBtn?.addEventListener('click', async ()=>{
-    const username = nameInput.value.trim();
-    msg.textContent='Saving...';
-    const r=await fetch('/api/users/settings',{ method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username }) });
-    const data=await r.json().catch(()=>({})); msg.textContent = r.ok ? 'Saved' : (data.message||'Error'); setTimeout(()=>msg.textContent='',1200);
-  });
+document.getElementById('avatarForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  msg.textContent='';
+  const file = document.getElementById('avatarFile').files[0];
+  if (!file) { msg.textContent = 'Please choose an image.'; return; }
+  if (file.size > 2*1024*1024) { msg.textContent = 'File too large (max 2MB).'; return; }
+  const fd = new FormData(); fd.append('avatar', file);
+  const res = await fetch(`${API_BASE_URL}/api/users/me/avatar`, { method:'POST', credentials:'include', body: fd });
+  if (!res.ok) {
+    const j = await res.json().catch(()=>({error:'Upload failed'})); msg.textContent = j.error || 'Upload failed'; return;
+  }
+  const data = await res.json();
+  const avatar = document.getElementById('avatar');
+  if (avatar && data.profile_picture_url) avatar.src = data.profile_picture_url;
+  msg.textContent = 'Avatar uploaded.';
+});
 
-  upBtn?.addEventListener('click', async ()=>{
-    const file = document.getElementById('set-avatar').files?.[0];
-    if(!file){ msg.textContent='Choose a file'; setTimeout(()=>msg.textContent='',1200); return; }
-    const fd=new FormData(); fd.append('avatar', file);
-    msg.textContent='Uploading...';
-    const r=await fetch('/api/users/settings/upload-picture',{ method:'POST', body: fd });
-    const data=await r.json().catch(()=>({}));
-    msg.textContent = r.ok ? 'Uploaded' : (data.message||'Error');
-    if(r.ok){ try{ populateNavbar(); }catch{} }
-    setTimeout(()=>msg.textContent='',1200);
-  });
-
-  delBtn?.addEventListener('click', async ()=>{
-    if(!confirm('Delete account? This cannot be undone.')) return;
-    const r=await fetch('/api/users/account',{method:'DELETE'});
-    if(r.ok){ alert('Account deleted'); handleLogout(); }
-  });
+document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+  if (!confirm('Delete your account? This cannot be undone.')) return;
+  try { await api('/api/users/me', { method:'DELETE' }); location.replace('index.html'); }
+  catch (err) { msg.textContent = err.message; }
 });

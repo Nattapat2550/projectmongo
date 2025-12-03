@@ -1,117 +1,137 @@
-async function loadAdmin(){
-  try{ await populateNavbar(); }catch{} try{ initDropdown(); }catch{}
-  await Promise.all([renderHomepage(), renderCarousel(), renderUsers()]);
-}
+const msg = document.getElementById('msg');
 
-/* Homepage body */
-async function renderHomepage(){
-  const ta=document.getElementById('home-body'); if(!ta) return;
-  try{ const r=await fetch('/api/admin/homepage-content'); const d=await r.json(); ta.value=d.body||''; }catch{ ta.value=''; }
-}
-async function saveHomepage(){
-  const ta=document.getElementById('home-body'); const msg=document.getElementById('h-msg');
-  msg.textContent='Saving...';
-  try{ const r=await fetch('/api/admin/homepage-content',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:ta.value||''})}); msg.textContent=r.ok?'Saved':'Error'; }catch{ msg.textContent='Error'; }
-  setTimeout(()=>msg.textContent='',1200);
-}
+async function load() {
+  try {
+    const me = await api('/api/users/me');
+    if (me.role !== 'admin') return location.replace('home.html');
+    document.getElementById('uname').textContent = me.username || me.email;
+    if (me.profile_picture_url) document.getElementById('avatar').src = me.profile_picture_url;
 
-/* Users */
-async function renderUsers(){
-  const tbody=document.querySelector('#users-table tbody'); if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="4">Loading...</td></tr>';
-  try{
-    const r=await fetch('/api/admin/users'); const users=await r.json();
-    tbody.innerHTML = users.map(u=>`
-      <tr data-id="${u._id}">
-        <td contenteditable="true" class="username">${escapeHtml(u.username||'')}</td>
-        <td>${escapeHtml(u.email||'')}</td>
+    // Users
+    const users = await api('/api/admin/users');
+    const tbody = document.querySelector('#usersTable tbody');
+    tbody.innerHTML = '';
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${u.id}</td>
+        <td><input value="${u.username || ''}" data-id="${u.id}" data-field="username" /></td>
+        <td><input value="${u.email}" data-id="${u.id}" data-field="email" /></td>
         <td>
-          <select class="role">
-            <option value="user"${u.role==='user'?' selected':''}>user</option>
-            <option value="admin"${u.role==='admin'?' selected':''}>admin</option>
+          <select data-id="${u.id}" data-field="role">
+            <option ${u.role==='user'?'selected':''}>user</option>
+            <option ${u.role==='admin'?'selected':''}>admin</option>
           </select>
         </td>
-        <td><button class="btn small" onclick="saveUser(this)">Save</button></td>
-      </tr>
-    `).join('');
-  }catch{ tbody.innerHTML='<tr><td colspan="4">Error</td></tr>'; }
+        <td><button class="btn small" data-save="${u.id}">Save</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    tbody.addEventListener('click', async (e) => {
+      const id = e.target.getAttribute('data-save');
+      if (!id) return;
+      const row = e.target.closest('tr');
+      const inputs = row.querySelectorAll('[data-id]');
+      const payload = {};
+      inputs.forEach(inp => payload[inp.getAttribute('data-field')] = inp.value);
+      try { await api(`/api/admin/users/${id}`, { method:'PUT', body: payload }); msg.textContent = 'Saved'; }
+      catch (err) { msg.textContent = err.message; }
+    }, { once: true });
+
+    // Homepage content form
+    document.getElementById('homeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const section = document.getElementById('section').value.trim();
+      const content = document.getElementById('content').value;
+      try { await api('/api/homepage', { method:'PUT', body:{ section_name: section, content }}); msg.textContent = `Section "${section}" saved.`; }
+      catch (err) { msg.textContent = err.message; }
+    });
+
+    // Carousel
+    await loadCarousel();
+
+    document.getElementById('logoutBtn').onclick = async () => {
+      await api('/api/auth/logout', { method:'POST' });
+      location.replace('index.html');
+    };
+  } catch { location.replace('index.html'); }
 }
-async function saveUser(btn){
-  const tr=btn.closest('tr'); const id=tr.dataset.id; const role=tr.querySelector('.role').value; const username=tr.querySelector('.username').textContent.trim();
-  btn.disabled=true;
-  try{ const r=await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,username})}); btn.textContent=r.ok?'Saved':'Error'; }catch{ btn.textContent='Error'; }
-  setTimeout(()=>btn.textContent='Save',900); btn.disabled=false;
+load();
+
+// ===== Carousel Admin =====
+async function loadCarousel() {
+  const items = await api('/api/admin/carousel');
+  const tbody = document.querySelector('#carouselTable tbody');
+  tbody.innerHTML = '';
+  items.forEach(it => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${it.id}</td>
+      <td><input type="number" value="${it.item_index}" data-id="${it.id}" data-field="item_index" style="width:80px"/></td>
+      <td><img src="${it.image_dataurl}" alt="preview" style="width:120px;height:60px;object-fit:cover;border-radius:.25rem"/></td>
+      <td><input type="text" value="${it.title || ''}" data-id="${it.id}" data-field="title"/></td>
+      <td><input type="text" value="${it.subtitle || ''}" data-id="${it.id}" data-field="subtitle"/></td>
+      <td><textarea rows="2" data-id="${it.id}" data-field="description">${it.description || ''}</textarea></td>
+      <td><input type="file" data-id="${it.id}" data-field="image" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"/></td>
+      <td>
+        <button class="btn" data-save="${it.id}">Save</button>
+        <button class="btn danger" data-del="${it.id}">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.addEventListener('click', async (e) => {
+    const saveId = e.target.getAttribute('data-save');
+    const delId = e.target.getAttribute('data-del');
+    if (saveId) await saveCarouselRow(saveId, e.target.closest('tr'));
+    else if (delId) {
+      if (!confirm('Delete this slide?')) return;
+      await api(`/api/admin/carousel/${delId}`, { method: 'DELETE' });
+      document.getElementById('msg').textContent = 'Deleted.';
+      loadCarousel();
+    }
+  }, { once: true });
 }
 
-/* Carousel */
-async function renderCarousel(){
-  const tbody=document.querySelector('#carousel-table tbody'); if(!tbody) return;
-  try{
-    const r=await fetch('/api/admin/carousel'); const items=await r.json();
-    tbody.innerHTML=(items||[]).map(it=>`
-      <tr data-id="${it._id}">
-        <td><input type="number" class="c-index" value="${Number(it.index)||0}" style="width:80px"></td>
-        <td><img src="${buildAssetURL(it.imageUrl)}" style="width:96px;height:64px;object-fit:cover;border-radius:8px"></td>
-        <td><input type="text" class="c-title" value="${escapeAttr(it.title||'')}" style="width:160px"></td>
-        <td><input type="text" class="c-subtitle" value="${escapeAttr(it.subtitle||'')}" style="width:160px"></td>
-        <td><input type="checkbox" class="c-active"${it.active?' checked':''}></td>
-        <td style="min-width:240px">
-          <button class="btn small" onclick="pickImage(this)">Image…</button>
-          <button class="btn small" onclick="updateCarousel(this)">Update</button>
-          <button class="btn small danger" onclick="delCarousel(this)">Delete</button>
-        </td>
-      </tr>
-      <tr class="desc-row" data-id="${it._id}">
-        <td colspan="6">
-          <label style="display:block;margin:6px 0 6px">Description</label>
-          <textarea class="c-desc" rows="2" style="width:100%">${escapeHtml(it.description||'')}</textarea>
-        </td>
-      </tr>
-    `).join('') || '<tr><td colspan="6">No items</td></tr>';
-  }catch{ tbody.innerHTML='<tr><td colspan="6">Error</td></tr>'; }
+async function saveCarouselRow(id, tr) {
+  const fields = tr.querySelectorAll('[data-id="'+id+'"]');
+  const fd = new FormData();
+  fields.forEach(el => {
+    const field = el.getAttribute('data-field');
+    if (field === 'image' && el.files && el.files[0]) fd.append('image', el.files[0]);
+    else fd.append(field, el.value);
+  });
+  const res = await fetch(`${API_BASE_URL}/api/admin/carousel/${id}`, {
+    method: 'PUT', credentials: 'include', body: fd
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(()=>({error:'Update failed'}));
+    throw new Error(j.error || 'Update failed');
+  }
+  document.getElementById('msg').textContent = 'Saved.';
+  loadCarousel();
 }
-async function createCarouselItem(){
-  const idxEl=document.getElementById('c-index'), titleEl=document.getElementById('c-title'), subEl=document.getElementById('c-subtitle'), descEl=document.getElementById('c-desc'), activeEl=document.getElementById('c-active'), fileEl=document.getElementById('c-image'), msg=document.getElementById('c-msg');
-  const index=Number(idxEl.value||0), title=titleEl.value||'', subtitle=subEl.value||'', description=descEl.value||'', active=!!activeEl.checked;
-  msg.textContent='Saving...';
-  let imageUrl='/images/user.png'; const f=fileEl.files?.[0];
-  if(f){ try{ const fd=new FormData(); fd.append('avatar',f); const up=await fetch('/api/users/settings/upload-picture',{method:'POST',body:fd}); const d=await up.json(); if(!up.ok) throw new Error(); imageUrl=d.profilePicture; }catch{ msg.textContent='Upload failed'; setTimeout(()=>msg.textContent='',1200); return; } }
-  try{
-    const r=await fetch('/api/admin/carousel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index,title,subtitle,description,imageUrl,active})});
-    if(!r.ok) throw new Error(); msg.textContent='Added'; await renderCarousel(); fileEl.value='';
-  }catch{ msg.textContent='Error'; } finally{ setTimeout(()=>msg.textContent='',1200); }
-}
-async function pickImage(btn){
-  const input=document.createElement('input'); input.type='file'; input.accept='image/*';
-  input.addEventListener('change', async ()=>{
-    if(!input.files?.[0]) return;
-    const fd=new FormData(); fd.append('avatar', input.files[0]);
-    try{
-      const up=await fetch('/api/users/settings/upload-picture',{method:'POST',body:fd}); const d=await up.json();
-      if(!up.ok) throw new Error();
-      const tr=btn.closest('tr'); tr.querySelector('img').src=buildAssetURL(d.profilePicture);
-      await updateCarousel(btn, d.profilePicture);
-    }catch{}
-  }); input.click();
-}
-async function updateCarousel(btn, forcedUrl){
-  const tr=btn.closest('tr'); const id=tr.dataset.id;
-  const idx=Number(tr.querySelector('.c-index').value||0);
-  const title=tr.querySelector('.c-title').value||'';
-  const subtitle=tr.querySelector('.c-subtitle').value||'';
-  const active=tr.querySelector('.c-active').checked;
-  const desc=tr.nextElementSibling?.querySelector('.c-desc')?.value||'';
-  const body={ index:idx, title, subtitle, description:desc, active };
-  if(forcedUrl) body.imageUrl=forcedUrl;
-  btn.disabled=true;
-  try{ const r=await fetch(`/api/admin/carousel/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); btn.textContent=r.ok?'Updated':'Error'; }catch{ btn.textContent='Error'; }
-  setTimeout(()=>btn.textContent='Update',900); btn.disabled=false;
-}
-async function delCarousel(btn){
-  const tr=btn.closest('tr'); const id=tr.dataset.id; btn.disabled=true;
-  try{ await fetch(`/api/admin/carousel/${id}`,{method:'DELETE'}); const desc=tr.nextElementSibling; tr.remove(); if(desc?.classList.contains('desc-row')) desc.remove(); }catch{} btn.disabled=false;
-}
-function escapeHtml(s){ const map={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}; return String(s).replace(/[&<>"']/g,ch=>map[ch]); }
-function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 
-window.loadAdmin=loadAdmin; window.saveHomepage=saveHomepage; window.createCarouselItem=createCarouselItem; window.updateCarousel=updateCarousel; window.delCarousel=delCarousel; window.pickImage=pickImage;
+document.getElementById('carouselForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('cImage').files[0];
+  if (!file) { msg.textContent = 'Please choose an image.'; return; }
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('itemIndex', document.getElementById('cIndex').value);
+  fd.append('title', document.getElementById('cTitle').value);
+  fd.append('subtitle', document.getElementById('cSubtitle').value);
+  fd.append('description', document.getElementById('cDesc').value);
+  const res = await fetch(`${API_BASE_URL}/api/admin/carousel`, {
+    method:'POST', credentials:'include', body: fd
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(()=>({error:'Create failed'}));
+    msg.textContent = j.error || 'Create failed'; return;
+  }
+  msg.textContent = 'Slide added.';
+  e.target.reset();
+  loadCarousel();
+});

@@ -1,269 +1,368 @@
-import express from 'express';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const { google } = require('googleapis');
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 
-import User from '../models/user.js';
-import generateCode from '../utils/generateCode.js';
-import { sendEmail } from '../utils/gmail.js';
+const {
+  createUserByEmail,
+  findUserByEmail,
+  setUsernameAndPassword,
+  storeVerificationCode,
+  validateAndConsumeCode,
+  setOAuthUser,
+  createPasswordResetToken,
+  consumePasswordResetToken,
+  setPassword,
+} = require('../models/user');
+
+const { sendEmail } = require('../utils/gmail');
+const generateCode = require('../utils/generateCode');
+const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 
 const router = express.Router();
 
-/* Google OAuth Strategy */
-passport.use(new GoogleStrategy(
-  {
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URI,
-  },
-  async (_at, _rt, profile, done) => {
-    try {
-      const email = profile.emails?.[0]?.value?.toLowerCase();
-      const googleId = profile.id;
-      const picture = profile.photos?.[0]?.value;
-
-      let user = await User.findOne({ $or: [{ googleId }, { email }] });
-      if (!user) {
-        user = await User.create({
-          email,
-          googleId,
-          profilePicture: picture || '/images/user.png'
-        });
-      } else if (!user.profilePicture && picture) {
-        user.profilePicture = picture;
-        await user.save();
-      }
-      return done(null, user);
-    } catch (e) {
-      return done(e);
-    }
-  }
-));
-
-function setCookieAndReturn(res, token, role, days) {
-  const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    path: '/',
-    maxAge: days * 24 * 60 * 60 * 1000
-  });
-  res.json({ message: 'OK', role, token });
+function signToken(user) {
+  return jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' },
+  );
 }
 
-/* POST /register */
+// ------ REGISTER ------
 router.post('/register', async (req, res) => {
   try {
     const { email } = req.body || {};
-    if (!email) return res.status(400).json({ message: 'Email is required' });
-    const lower = String(email).toLowerCase();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email' });
+    }
 
-    const exists = await User.findOne({ email: lower });
-    if (exists) return res.status(409).json({ message: 'Email already registered' });
+    const existing = await findUserByEmail(email);
+    if (existing && existing.is_email_verified) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
 
+    const user = existing || (await createUserByEmail(email));
     const code = generateCode();
-    const hash = await bcrypt.hash(code, 10);
-    const expires = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await User.create({
-      email: lower,
-      verificationCode: hash,
-      verificationCodeExpires: expires
+    await storeVerificationCode(user.id, code, expiresAt);
+
+    await sendEmail({
+      to: email,
+      subject: 'Your verification code',
+      text: `Your code is ${code}. It expires in 10 minutes.`,
+      html: `<p>Your code is <b>${code}</b>. It expires in 10 minutes.</p>`,
     });
 
-    const html = `<h2>ProjectMongo Verification</h2>
-      <p>Your code: <b style="font-size:18px">${code}</b></p>
-      <p>Expires in 10 minutes.</p>`;
-    try { await sendEmail(lower, 'Verify your email', html); } catch {}
-
-    res.json({ message: 'Verification code sent' });
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    console.error('register error', e);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
-/* POST /verify-email */
-router.post('/verify-email', async (req, res) => {
+// ------ VERIFY CODE ------
+router.post('/verify-code', async (req, res) => {
   try {
-    const { email, verificationCode } = req.body || {};
-    const lower = String(email||'').toLowerCase();
-    const user = await User.findOne({ email: lower });
-    if (!user || !user.verificationCode || !user.verificationCodeExpires) {
-      return res.status(400).json({ message: 'Invalid request' });
+    const { email, code } = req.body || {};
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Missing email or code' });
     }
-    if (user.verificationCodeExpires < new Date()) {
-      return res.status(400).json({ message: 'Code expired' });
+
+    const result = await validateAndConsumeCode(email, code);
+    if (!result.ok) {
+      if (result.reason === 'no_user') {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      return res.status(400).json({ error: 'Invalid or expired code' });
     }
-    const ok = await bcrypt.compare(String(verificationCode||''), user.verificationCode);
-    if (!ok) return res.status(400).json({ message: 'Invalid code' });
 
-    user.verificationCode = undefined;
-    user.verificationCodeExpires = undefined;
-    await user.save();
-
-    const preToken = jwt.sign({ id: user._id, stage: 'pre' }, process.env.JWT_SECRET, { expiresIn: '30m' });
-    res.json({ message: 'Email verified', token: preToken });
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('verify-code error', e);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
-/* POST /complete-registration */
-function requirePre(req, res, next) {
+// ------ COMPLETE PROFILE ------
+router.post('/complete-profile', async (req, res) => {
   try {
-    const auth = req.headers.authorization || '';
-    const headerToken = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-    const cookieToken = req.cookies?.token;
-    const token = headerToken || cookieToken;
-    if (!token) return res.status(401).json({ message: 'Unauthorized' });
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (payload.stage !== 'pre') return res.status(401).json({ message: 'Unauthorized' });
-    req.preId = payload.id;
-    next();
-  } catch {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-}
-router.post('/complete-registration', requirePre, async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    const user = await User.findById(req.preId);
-    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    const { email, username, password } = req.body || {};
+    if (!email || !username || !password) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Username too short' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password too short' });
+    }
 
-    if (username) user.username = username;
-    if (password) user.password = password;
-    await user.save();
+    const updated = await setUsernameAndPassword(email, username, password);
+    if (!updated) {
+      return res.status(401).json({ error: 'Email not verified' });
+    }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    setCookieAndReturn(res, token, user.role, 7);
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+    const token = signToken(updated);
+    setAuthCookie(res, token, true);
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+    console.error('complete-profile error', e);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
-/* GET /google */
-router.get('/google', passport.authenticate('google', { scope: ['profile','email'] }));
-
-/* GET /google/callback */
-router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login.html' }),
-  async (req, res) => {
-    const user = req.user;
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('token', token, {
-      httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/', maxAge: 7*24*60*60*1000
-    });
-    const front = process.env.FRONTEND_URL || '';
-    const target = !user.username
-      ? '/form.html?source=google#token=' + token
-      : '/home.html#token=' + token;
-    res.redirect(front + target);
-  }
-);
-
-/* POST /login */
+// ------ LOGIN (EMAIL / PASSWORD) ------
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, rememberMe } = req.body || {};
-    const lower = String(email||'').toLowerCase();
-    const user = await User.findOne({ email: lower });
-    if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const { email, password, remember } = req.body || {};
+    const user = await findUserByEmail(email || '');
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    const exp = rememberMe ? '30d' : '7d';
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: exp });
-    const days = rememberMe ? 30 : 7;
-    setCookieAndReturn(res, token, user.role, days);
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+
+    const ok = await bcrypt.compare(password || '', user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = signToken(user);
+    setAuthCookie(res, token, !!remember);
+    res.json({ role: user.role });
+  } catch (e) {
+    console.error('login error', e);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
-// POST /api/auth/forgot-password
+router.post('/logout', async (_req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
+});
+
+// ------ GOOGLE OAUTH (WEB FLOW) ------
+
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_CLIENT_ID_ANDROID;
+
+const oauth2ClientWeb = new google.auth.OAuth2(
+  GOOGLE_WEB_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_CALLBACK_URI,
+);
+
+// เริ่ม OAuth บนเว็บ
+router.get('/google', (req, res) => {
+  const url = oauth2ClientWeb.generateAuthUrl({
+    redirect_uri: process.env.GOOGLE_CALLBACK_URI,
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: ['openid', 'email', 'profile'],
+  });
+  res.redirect(url);
+});
+
+// callback จาก Google (เว็บ)
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    const { tokens } = await oauth2ClientWeb.getToken({
+      code,
+      redirect_uri: process.env.GOOGLE_CALLBACK_URI,
+    });
+    oauth2ClientWeb.setCredentials(tokens);
+
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2ClientWeb });
+    const { data: info } = await oauth2.userinfo.get();
+
+    const email = info.email;
+    const oauthId = info.id;
+    const picture = info.picture;
+    const name = info.name;
+
+    const user = await setOAuthUser({
+      email,
+      provider: 'google',
+      oauthId,
+      pictureUrl: picture,
+      name,
+    });
+
+    const token = signToken(user);
+    setAuthCookie(res, token, true);
+
+    if (!user.username) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/form.html?email=${encodeURIComponent(
+          email,
+        )}`,
+      );
+    }
+
+    if (user.role === 'admin') {
+      return res.redirect(`${process.env.FRONTEND_URL}/admin.html`);
+    }
+    return res.redirect(`${process.env.FRONTEND_URL}/home.html`);
+  } catch (e) {
+    console.error(
+      'google callback error',
+      e?.response?.data || e?.message || e,
+    );
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/login.html?error=oauth_failed`,
+    );
+  }
+});
+
+// ------ FORGOT / RESET PASSWORD ------
+
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
-    const lower = String(email || '').toLowerCase();
-    const user = await User.findOne({ email: lower });
-    if (!user) return res.json({ message: 'If exists, email sent' });
+    if (!email) {
+      return res.status(400).json({ error: 'Missing email' });
+    }
 
-    const token = crypto.randomBytes(32).toString('hex'); // hex ไม่ต้องกลัว encode
-    const hash = await bcrypt.hash(token, 10);
-    user.resetPasswordToken = hash;
-    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 ชม.
-    await user.save();
+    const rawToken =
+      uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
-    const link = `${process.env.FRONTEND_URL}/reset.html?token=${encodeURIComponent(token)}`;
-    const html = `<p>Reset your password:</p><p><a href="${link}">${link}</a></p>`;
-    try { await sendEmail(user.email, 'Reset Password', html); } catch {}
-    res.json({ message: 'If exists, email sent' });
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+    const user = await createPasswordResetToken(email, rawToken, expiresAt);
+
+    if (user) {
+      const link = `${process.env.FRONTEND_URL}/reset.html?token=${rawToken}`;
+      await sendEmail({
+        to: email,
+        subject: 'Password reset',
+        text: `Reset your password using this link (valid 30 minutes): ${link}`,
+        html: `<p>Reset your password (valid 30 minutes): <a href="${link}">${link}</a></p>`,
+      });
+    }
+
+    // ไม่บอกว่า email นี้มี user หรือไม่ (ป้องกัน enumeration)
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('forgot-password error', e);
+    res.json({ ok: true });
   }
 });
 
-// POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {
-    // ยอมรับ token จาก query หรือ body (กันกรณี front ไม่ส่งมา)
-    const tokenFromQuery = (req.query?.token || '').trim();
-    const tokenFromBody  = (req.body?.token || '').trim();
-    const token = tokenFromBody || tokenFromQuery;
-
-    const newPassword     = (req.body?.newPassword || '').trim();
-    const confirmPassword = (req.body?.confirmPassword || '').trim();
-
-    if (!token) {
-      return res.status(400).json({ message: 'Missing token' });
-    }
-    if (!newPassword || !confirmPassword) {
-      return res.status(400).json({ message: 'Missing password fields' });
-    }
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ message: 'Passwords do not match' });
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Missing fields' });
     }
     if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+      return res.status(400).json({ error: 'Password too short' });
     }
 
-    // ค้นหา user ที่ token ยังไม่หมดอายุ แล้วเทียบ bcrypt
-    const candidates = await User.find({
-      resetPasswordToken: { $ne: null },
-      resetPasswordExpires: { $gt: new Date() }
-    });
-
-    let target = null;
-    for (const u of candidates) {
-      const ok = await bcrypt.compare(token, u.resetPasswordToken);
-      if (ok) { target = u; break; }
+    const user = await consumePasswordResetToken(token);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
-    if (!target) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
-    }
-
-    target.password = newPassword;
-    target.resetPasswordToken = undefined;
-    target.resetPasswordExpires = undefined;
-    await target.save();
-
-    res.json({ message: 'Password updated' });
-  } catch {
-    res.status(500).json({ message: 'Server error' });
+    await setPassword(user.id, newPassword);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('reset-password error', e);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
-/* POST /logout */
-router.post('/logout', (req, res) => {
-  const isProd = process.env.NODE_ENV === 'production';
-  const opts = { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' };
-  res.clearCookie('token', opts);
-  res.cookie('token', '', { ...opts, expires: new Date(0) });
-  res.json({ message: 'Logged out' });
+// ------ GOOGLE LOGIN (MOBILE / FLUTTER) ------
+
+router.post('/google-mobile', async (req, res) => {
+  try {
+    const { authCode } = req.body || {};
+    if (!authCode) {
+      return res.status(400).json({ error: 'Missing authCode' });
+    }
+
+    const webClientId =
+      process.env.GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID;
+    if (!webClientId || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Google web client or secret is not configured');
+      return res
+        .status(500)
+        .json({ error: 'Google auth is not configured on server' });
+    }
+
+    // ใช้ Web client ID + secret ในการแลก authCode เป็น token
+    const oauth2ClientMobile = new google.auth.OAuth2(
+      webClientId,
+      process.env.GOOGLE_CLIENT_SECRET,
+      // ไม่ต้องใช้ callback URI แบบเว็บ
+    );
+
+    // สำหรับ authCode ที่มาจาก mobile ใช้ redirect_uri = 'postmessage'
+    const { tokens } = await oauth2ClientMobile.getToken(authCode);
+
+
+    oauth2ClientMobile.setCredentials(tokens);
+
+    // ดึงข้อมูล profile ผู้ใช้จาก Google
+    const oauth2 = google.oauth2({
+      version: 'v2',
+      auth: oauth2ClientMobile,
+    });
+
+    const { data: info } = await oauth2.userinfo.get();
+
+    const email = info.email;
+    const oauthId = info.id;
+    const picture = info.picture;
+    const name = info.name;
+
+    if (!email) {
+      return res.status(400).json({ error: 'No email from Google' });
+    }
+
+    // ใช้รูปแบบเดียวกับเว็บ
+    const user = await setOAuthUser({
+      email,
+      provider: 'google',
+      oauthId,
+      pictureUrl: picture,
+      name,
+    });
+
+    const token = signToken(user);
+    setAuthCookie(res, token, true); // remember=true
+
+    // mobile จะใช้ role ในการตัดสินจะไปหน้า admin หรือ home
+    res.json({ role: user.role });
+  } catch (e) {
+    console.error('google-mobile error', e?.response?.data || e?.message || e);
+    res.status(401).json({ error: 'Invalid Google auth' });
+  }
 });
 
-export default router;
+router.get('/status', (req, res) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    // ยังไม่ล็อกอิน
+    return res.json({ authenticated: false });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    return res.json({
+      authenticated: true,
+      id: payload.id,
+      role: payload.role || 'user'
+    });
+  } catch (e) {
+    // token เสีย / หมดอายุ ให้ถือว่าไม่ล็อกอิน แต่ไม่ต้อง 401
+    return res.json({ authenticated: false });
+  }
+});
+
+module.exports = router;
