@@ -40,7 +40,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/homepage', homepageRoutes);   // ถ้ามี
 app.use('/api/carousel', carouselRoutes);
 app.use('/api/download', downloadRoutes);   // ⭐ ตรงนี้คือ /api/carousel
-
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);

@@ -11,6 +11,10 @@ oauth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
 const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
 async function sendEmail({ to, subject, text, html }) {
+  if (process.env.EMAIL_DISABLE === 'true') {
+    console.log('[EMAIL_DISABLE] skip send to', to, 'subject =', subject);
+    return;
+  }
   const mail = new MailComposer({ to, subject, text, html, from: process.env.SENDER_EMAIL });
   const message = await new Promise((resolve, reject) => {
     mail.compile().build((err, msg) => (err ? reject(err) : resolve(msg)));
