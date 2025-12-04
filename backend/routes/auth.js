@@ -207,26 +207,47 @@ router.post('/logout', (_req, res) => {
 // AUTH STATUS
 // GET /api/auth/status
 // ---------------------
-router.get('/status', authenticateJWT, async (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const userId = req.user && (req.user.id || req.user.userId || req.user._id);
+    const cookieToken = req.cookies && req.cookies.token;
+    const headerAuth = req.headers.authorization;
+    let token = cookieToken;
 
+    // เผื่อในอนาคตมีการส่งผ่าน Authorization header แบบ Bearer
+    if (!token && headerAuth && headerAuth.startsWith('Bearer ')) {
+      token = headerAuth.slice(7);
+    }
+
+    if (!token) {
+      // ยังไม่ล็อกอิน → ไม่ต้อง 401 แค่ตอบ authenticated: false
+      return res.json({ authenticated: false });
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      // token หมดอายุ / ไม่ถูกต้อง → ถือว่าไม่ล็อกอิน แต่ไม่ต้อง 401
+      return res.json({ authenticated: false });
+    }
+
+    const userId = payload.id || payload.userId || payload._id;
     if (!userId) {
-      return res.status(401).json({ authenticated: false });
+      return res.json({ authenticated: false });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(401).json({ authenticated: false });
+      return res.json({ authenticated: false });
     }
 
-    res.json({
+    return res.json({
       authenticated: true,
       user: sanitizeUser(user),
     });
   } catch (e) {
     console.error('auth status error', e);
-    res.status(500).json({ authenticated: false, error: 'Internal error' });
+    return res.status(500).json({ authenticated: false, error: 'Internal error' });
   }
 });
 
