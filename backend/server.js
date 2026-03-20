@@ -43,6 +43,13 @@ app.use('/api/download', downloadRoutes);   // ⭐ ตรงนี้คือ /
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+
+// ป้องกันไม่ให้ Server เปิด Port ซ้ำซ้อนตอนกำลังรัน Test
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+  });
+}
+
+// แตกตัวแปร app ออกไปให้ Jest สามารถดึงไปทำ Supertest ได้
+module.exports = app;
