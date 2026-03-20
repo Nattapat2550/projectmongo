@@ -1,0 +1,41 @@
+name: Backend CI (Jest Tests)
+
+# กำหนดให้รันเทสอัตโนมัติเมื่อมีการ Push หรือสร้าง Pull Request เข้า branch main หรือ master
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # สำคัญมาก! ต้องจำลอง Database MongoDB ขึ้นมาบน GitHub ด้วย เพื่อให้ Jest เชื่อมต่อได้
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+
+    # เนื่องจากไฟล์ package.json ของคุณอยู่ในโฟลเดอร์ backend จึงต้องตั้งค่า working-directory
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+    - name: 📥 ดาวน์โหลดโค้ด (Checkout Code)
+      uses: actions/checkout@v4
+
+    - name: ⚙️ ติดตั้ง Node.js (Setup Node.js v20)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # สามารถเปลี่ยนเป็น 18 ได้ถ้าเครื่องคุณใช้ v18
+        cache: 'npm'
+        cache-dependency-path: './backend/package-lock.json'
+
+    - name: 📦 ติดตั้งแพ็กเกจ (Install Dependencies)
+      run: npm install
+
+    - name: 🚀 รันเทสทั้งหมด (Run Jest Tests)
+      run: npm test
